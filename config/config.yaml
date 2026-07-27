@@ -1,0 +1,51 @@
+rtsp:
+  url: rtsp://Bouncy:BallZach@10.0.0.153/live
+  reconnect_delay: 5
+  max_reconnects: 0
+  frame_timeout: 10
+model:
+  active: ssd_mobilenet_v2_coco_quant_postprocess.tflite
+  available:
+  - efficientdet_lite0_320_ptq.tflite
+  - ssd_mobilenet_v2_coco_quant_postprocess.tflite
+  model_dir: models
+  confidence_threshold: 0.4
+  max_detections: 100
+detection:
+  enabled_classes:
+  - vehicle
+  - pedestrian
+  - animal
+  - cyclist
+  frame_skip: 1
+  resize_width: 320
+  resize_height: 320
+tracking:
+  enabled: true
+  iou_threshold: 0.15
+  max_disappeared: 30
+  direction_window: 30
+database:
+  path: data/roadway.db
+  retention_days: 90
+  vacuum_interval: 3600
+sound_events:
+  enabled: true
+  sample_rate: 16000
+  chunk_duration: 1.0
+  siren_threshold: 0.6
+  horn_threshold: 0.5
+  bark_threshold: 0.4
+  input_device: null
+dashboard:
+  host: 0.0.0.0
+  port: 8080
+  update_interval: 1000
+  mjpeg_scale: 640
+  mjpeg_quality: 55
+  debug: false
+logging:
+  level: INFO
+  file: logs/observer.log
+  max_size_mb: 10
+  backup_count: 3

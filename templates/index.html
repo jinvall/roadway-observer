@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>roadway-observer</title>
+  <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+  <div class="dashboard">
+    <header>
+      <h1>roadway-observer</h1>
+        <nav><a href="/settings" class="settings-link">Settings</a></nav>
+      <div class="status-bar">
+        <span class="status" id="status-indicator">●</span>
+        <span id="status-text">Connecting...</span>
+        <span class="uptime" id="uptime">00:00:00</span>
+      </div>
+    </header>
+
+    <div class="main-grid">
+      <!-- Live Video -->
+      <div class="card video-card">
+        <div class="card-header">
+          <h2>Live Feed</h2>
+          <div class="fps-badge" id="fps-display">0 FPS</div>
+        </div>
+        <div class="video-container">
+          <img src="/video_feed" alt="Live feed" id="live-feed">
+        </div>
+      </div>
+
+      <!-- Stats Panel -->
+      <div class="card stats-card">
+        <div class="card-header">
+          <h2>Today's Counts</h2>
+        </div>
+        <div class="stats-grid" id="stats-grid">
+          <div class="stat-item">
+            <span class="stat-value" id="stat-vehicles">0</span>
+            <span class="stat-label">Vehicles</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="stat-pedestrians">0</span>
+            <span class="stat-label">Pedestrians</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="stat-animals">0</span>
+            <span class="stat-label">Animals</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="stat-cyclists">0</span>
+            <span class="stat-label">Cyclists</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="stat-total">0</span>
+            <span class="stat-label">Total</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="stat-sound">0</span>
+            <span class="stat-label">Sound Events</span>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="system-stats">
+          <div class="sys-row">
+            <span class="sys-label">Inference</span>
+            <span class="sys-value" id="sys-inference">0ms</span>
+          </div>
+          <div class="sys-row">
+            <span class="sys-label">Active Tracks</span>
+            <span class="sys-value" id="sys-tracks">0</span>
+          </div>
+          <div class="sys-row">
+            <span class="sys-label">Model</span>
+            <span class="sys-value" id="sys-model">-</span>
+          </div>
+          <div class="sys-row">
+            <span class="sys-label">Resolution</span>
+            <span class="sys-value" id="sys-resolution">-</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Detections -->
+      <div class="card detections-card">
+        <div class="card-header">
+          <h2>Recent Detections</h2>
+        </div>
+        <div class="detections-list" id="detections-list">
+          <div class="detection-empty">Waiting for detections...</div>
+        </div>
+      </div>
+
+      <!-- Sound Events -->
+      <div class="card sound-card">
+        <div class="card-header">
+          <h2>Sound Events</h2>
+        </div>
+        <div class="sound-list" id="sound-list">
+          <div class="detection-empty">No sound events detected</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/dashboard.js"></script>
+</body>
+</html>

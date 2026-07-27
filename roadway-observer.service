@@ -1,0 +1,25 @@
+[Unit]
+Description=roadway-observer - Roadway Observation System
+After=network.target
+
+[Service]
+Type=simple
+User=roadway
+Group=roadway
+WorkingDirectory=/opt/roadway-observer
+Environment="PATH=/opt/roadway-observer/venv/bin"
+ExecStart=/opt/roadway-observer/venv/bin/python3 /opt/roadway-observer/src/main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

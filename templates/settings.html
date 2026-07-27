@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings - roadway-observer</title>
+  <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+  <div class="settings-page">
+    <header>
+      <h1>Settings</h1>
+      <nav><a href="/" class="settings-link">&larr; Dashboard</a></nav>
+    </header>
+    <p class="subtitle">Live configuration. Some changes require a restart.</p>
+
+    <div id="restart-notice" class="restart-notice">
+      <strong>Restart required</strong> &mdash; The following changes need a restart to take effect:
+      <span id="restart-list"></span>
+    </div>
+
+    <form id="settings-form">
+
+      <!-- RTSP -->
+      <div class="settings-section">
+        <h2>Camera (RTSP)</h2>
+        <div class="form-group">
+          <label for="rtsp-url">Stream URL</label>
+          <input type="text" id="rtsp-url" name="rtsp.url" data-section="rtsp" data-key="url">
+          <div class="hint">Requires restart</div>
+        </div>
+      </div>
+
+      <!-- Model -->
+      <div class="settings-section">
+        <h2>Detection Model</h2>
+        <div class="form-group">
+          <label for="model-active">Active Model</label>
+          <select id="model-active" name="model.active" data-section="model" data-key="active"></select>
+          <div class="hint">Requires restart</div>
+        </div>
+        <div class="form-group">
+          <label for="model-confidence">Confidence Threshold</label>
+          <input type="number" id="model-confidence" name="model.confidence_threshold"
+                 data-section="model" data-key="confidence_threshold" min="0.1" max="1.0" step="0.05">
+        </div>
+      </div>
+
+      <!-- Detection -->
+      <div class="settings-section">
+        <h2>Detection</h2>
+        <div class="form-group">
+          <label>Enabled Classes</label>
+          <div class="checkbox-group" id="detection-classes"></div>
+        </div>
+        <div class="form-group">
+          <label for="detection-frame-skip">Frame Skip</label>
+          <input type="number" id="detection-frame-skip" name="detection.frame_skip"
+                 data-section="detection" data-key="frame_skip" min="1" max="10" step="1">
+          <div class="hint">Process every Nth frame (1 = every frame, 2 = every other frame)</div>
+        </div>
+      </div>
+
+      <!-- Tracking -->
+      <div class="settings-section">
+        <h2>Tracking</h2>
+        <div class="form-group">
+          <label for="tracking-iou">IOU Threshold</label>
+          <input type="number" id="tracking-iou" name="tracking.iou_threshold"
+                 data-section="tracking" data-key="iou_threshold" min="0.1" max="1.0" step="0.05">
+          <div class="hint">Lower = stricter matching required between frames</div>
+        </div>
+        <div class="form-group">
+          <label for="tracking-disappeared">Max Disappeared Frames</label>
+          <input type="number" id="tracking-disappeared" name="tracking.max_disappeared"
+                 data-section="tracking" data-key="max_disappeared" min="1" max="100" step="1">
+        </div>
+      </div>
+
+      <!-- Sound -->
+      <div class="settings-section">
+        <h2>Sound Detection</h2>
+        <div class="form-group">
+          <label for="sound-siren">Siren Threshold</label>
+          <input type="number" id="sound-siren" name="sound_events.siren_threshold"
+                 data-section="sound_events" data-key="siren_threshold" min="0.1" max="1.0" step="0.05">
+        </div>
+        <div class="form-group">
+          <label for="sound-horn">Horn Threshold</label>
+          <input type="number" id="sound-horn" name="sound_events.horn_threshold"
+                 data-section="sound_events" data-key="horn_threshold" min="0.1" max="1.0" step="0.05">
+        </div>
+        <div class="form-group">
+          <label for="sound-bark">Bark Threshold</label>
+          <input type="number" id="sound-bark" name="sound_events.bark_threshold"
+                 data-section="sound_events" data-key="bark_threshold" min="0.1" max="1.0" step="0.05">
+        </div>
+      </div>
+
+      <!-- Dashboard -->
+      <div class="settings-section">
+        <h2>Dashboard</h2>
+        <div class="form-group">
+          <label for="dash-scale">MJPEG Scale (width px)</label>
+          <input type="number" id="dash-scale" name="dashboard.mjpeg_scale"
+                 data-section="dashboard" data-key="mjpeg_scale" min="320" max="1920" step="160">
+          <div class="hint">Lower = smaller MJPEG frames, faster dashboard loading</div>
+        </div>
+        <div class="form-group">
+          <label for="dash-quality">JPEG Quality (1-100)</label>
+          <input type="number" id="dash-quality" name="dashboard.mjpeg_quality"
+                 data-section="dashboard" data-key="mjpeg_quality" min="10" max="100" step="5">
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="save-btn">Save Changes</button>
+        <button type="button" class="btn btn-secondary" id="reload-btn">Reload from Disk</button>
+        <span id="save-status" class="save-status"></span>
+      </div>
+    </form>
+  </div>
+
+  <script>
+  const ALL_CLASSES = ['vehicle', 'pedestrian', 'animal', 'cyclist'];
+  const RESTART_KEYS = ['rtsp.url', 'model.active'];
+
+  async function loadConfig() {
+    const resp = await fetch('/api/config');
+    return await resp.json();
+  }
+
+  function populateForm(cfg) {
+    // Populate text/number inputs
+    document.querySelectorAll('input[data-section][data-key]').forEach(el => {
+      const section = el.dataset.section;
+      const key = el.dataset.key;
+      const val = cfg[section]?.[key];
+      if (val !== undefined) el.value = val;
+    });
+
+    // Populate model select
+    const select = document.getElementById('model-active');
+    if (cfg.model?.available) {
+      select.innerHTML = cfg.model.available.map(m =>
+        `<option value="${m}" ${m === cfg.model.active ? 'selected' : ''}>${m}</option>`
+      ).join('');
+    }
+
+    // Populate detection classes checkboxes
+    const container = document.getElementById('detection-classes');
+    const enabled = cfg.detection?.enabled_classes || [];
+    container.innerHTML = ALL_CLASSES.map(c =>
+      `<label><input type="checkbox" value="${c}" ${enabled.includes(c) ? 'checked' : ''}> ${c}</label>`
+    ).join('');
+  }
+
+  function collectFormData() {
+    const data = {};
+
+    // Collect text/number inputs
+    document.querySelectorAll('input[data-section][data-key]').forEach(el => {
+      const section = el.dataset.section;
+      const key = el.dataset.key;
+      if (!data[section]) data[section] = {};
+      data[section][key] = el.type === 'number' ? parseFloat(el.value) : el.value;
+    });
+
+    // Collect select
+    const select = document.getElementById('model-active');
+    if (!data.model) data.model = {};
+    data.model.active = select.value;
+
+    // Collect checkboxes for detection classes
+    const checked = [];
+    document.querySelectorAll('#detection-classes input[type="checkbox"]:checked').forEach(cb => {
+      checked.push(cb.value);
+    });
+    if (!data.detection) data.detection = {};
+    data.detection.enabled_classes = checked;
+
+    return data;
+  }
+
+  async function saveSettings(e) {
+    e.preventDefault();
+    const status = document.getElementById('save-status');
+    const restartNotice = document.getElementById('restart-notice');
+    const restartList = document.getElementById('restart-list');
+    const btn = document.getElementById('save-btn');
+    btn.disabled = true;
+    status.className = 'save-status';
+    status.textContent = 'Saving...';
+
+    try {
+      const data = collectFormData();
+      const resp = await fetch('/api/config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+      });
+      const result = await resp.json();
+
+      if (result.requires_restart && result.requires_restart.length > 0) {
+        restartList.textContent = result.requires_restart.join(', ');
+        restartNotice.classList.add('visible');
+        status.className = 'save-status info';
+        status.textContent = 'Saved - restart to apply all changes';
+      } else {
+        restartNotice.classList.remove('visible');
+        status.className = 'save-status success';
+        status.textContent = 'All changes applied live';
+      }
+    } catch (e) {
+      status.className = 'save-status error';
+      status.textContent = 'Error: ' + e.message;
+    } finally {
+      btn.disabled = false;
+      setTimeout(() => { status.textContent = ''; }, 5000);
+    }
+  }
+
+  async function reloadConfig() {
+    const status = document.getElementById('save-status');
+    try {
+      await fetch('/api/config/reload');
+      const cfg = await loadConfig();
+      populateForm(cfg);
+      status.className = 'save-status success';
+      status.textContent = 'Config reloaded from disk';
+    } catch (e) {
+      status.className = 'save-status error';
+      status.textContent = 'Error: ' + e.message;
+    }
+    setTimeout(() => { status.textContent = ''; }, 3000);
+  }
+
+  // Init
+  document.getElementById('settings-form').addEventListener('submit', saveSettings);
+  document.getElementById('reload-btn').addEventListener('click', reloadConfig);
+
+  loadConfig().then(cfg => {
+    populateForm(cfg);
+    console.log('Settings loaded');
+  });
+  </script>
+</body>
+</html>
