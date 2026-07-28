@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.3] - 2026-07-28
+
+### Added
+
+- WiFi MAC correlation for vehicle detection with USB sniffer support
+- Calibration mode: 30s + 30s wait + 30s to detect static MACs
+- Dynamic (transient) MAC display on capture images with SSID overlay
+
+### Changed
+
+- WiFi sniffer now uses non-blocking file reads to prevent dashboard hangs
+- Simplified WiFi status: shows count of transient devices only
+- Removed threading from WiFi sniffer for reliable synchronous updates
+
 ## [1.1.2] - 2026-07-27
 
 ### Added
