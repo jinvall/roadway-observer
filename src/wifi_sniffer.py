@@ -77,18 +77,28 @@ class WiFiSniffer:
             return
 
         try:
-            with open(self.device, encoding='utf-8', errors='ignore') as f:
-                for _ in range(10):
-                    readable, _, _ = select.select([f], [], [], 0.1)
-                    if not readable:
-                        break
+            import fcntl
+            import os
+            
+            with open(self.device, 'r', encoding='utf-8', errors='ignore', buffering=1) as f:
+                fl = f.fileno()
+                try:
+                    flags = fcntl.fcntl(fl, fcntl.F_GETFL)
+                    fcntl.fcntl(fl, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+                except:
+                    pass
+                
+                for _ in range(5):
                     try:
+                        readable, _, _ = select.select([f], [], [], 0.05)
+                        if not readable:
+                            break
                         chunk = f.read(1024)
                         if not chunk:
                             continue
                         self._buffer += chunk
                     except:
-                        continue
+                        break
                 
                 while '\n' in self._buffer:
                     line, self._buffer = self._buffer.split('\n', 1)
