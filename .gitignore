@@ -65,6 +65,9 @@ htmlcov/
 # Environment variables (if you create a .env file)
 .env
 
+# Kilo agent configuration
+.kilo/
+
 # Distribution / packaging
 *.manifest
 *.spec
