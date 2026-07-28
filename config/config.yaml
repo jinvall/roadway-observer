@@ -53,7 +53,11 @@ logging:
   file: logs/observer.log
   max_size_mb: 10
   backup_count: 3
+photos:
+  enabled: true
+  path: data/photos
+  max_files: 100
 wifi_sniffer:
-  enabled: 'true'
+  enabled: false
   device: /dev/ttyUSB1
   history_window: 3600

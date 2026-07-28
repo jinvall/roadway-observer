@@ -47,17 +47,38 @@ class WiFiSniffer:
     def _parse_sniffer_output(self):
         """Parse USB sniffer output for MAC addresses."""
         try:
-            with open(self.device) as f:
-                for line in f:
-                    if 'DA:' in line or 'SA:' in line:
-                        parts = line.split()
-                        for part in parts:
-                            if ':' in part and len(part) == 17:
-                                mac = part.lower()
-                                if mac not in self.bssid_list:
-                                    self.station_macs.add(mac)
+            import serial
+            ser = None
+            try:
+                ser = serial.Serial(self.device, 9600, timeout=0.1)
+                line = ser.readline().decode('utf-8', errors='ignore')
+                if 'DA:' in line or 'SA:' in line:
+                    parts = line.split()
+                    for part in parts:
+                        if ':' in part and len(part) == 17:
+                            mac = part.lower()
+                            if mac not in self.bssid_list:
+                                self.station_macs.add(mac)
+            finally:
+                if ser:
+                    ser.close()
+        except ImportError:
+            try:
+                with open(self.device, 'r', encoding='utf-8', errors='ignore') as f:
+                    import select
+                    if select.select([f], [], [], 0.1)[0]:
+                        line = f.readline()
+                        if 'DA:' in line or 'SA:' in line:
+                            parts = line.split()
+                            for part in parts:
+                                if ':' in part and len(part) == 17:
+                                    mac = part.lower()
+                                    if mac not in self.bssid_list:
+                                        self.station_macs.add(mac)
+            except Exception as e:
+                print(f"[wifi] Sniffer error: {e}")
         except Exception as e:
-            print(f"[wifi] Sniffer error: {e}")
+            pass
 
     def _detect_static_macs(self):
         """Detect static MACs from history."""
@@ -86,8 +107,15 @@ class WiFiSniffer:
         while self._running:
             try:
                 self._parse_sniffer_output()
-                self._detect_static_macs()
+                
                 now = time.time()
+                for mac in list(self.station_macs):
+                    if mac not in self._mac_history:
+                        self._mac_history[mac] = []
+                    self._mac_history[mac].append(now)
+                
+                self._detect_static_macs()
+                
                 for mac in list(self._mac_history.keys()):
                     self._mac_history[mac] = [
                         t for t in self._mac_history[mac]

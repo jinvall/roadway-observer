@@ -104,6 +104,9 @@ class Dashboard:
         def api_capture():
             """Capture current frame with WiFi overlay."""
             import base64
+            import os
+            from datetime import datetime
+            
             with self._frame_lock:
                 if self._frame is None:
                     return jsonify({"status": "error", "message": "No frame available"}), 404
@@ -122,10 +125,34 @@ class Dashboard:
             if not ret:
                 return jsonify({"status": "error", "message": "Failed to encode image"}), 500
 
-            return jsonify({
+            saved_path = None
+            try:
+                cfg = load_config()
+                photos_cfg = cfg.get("photos", {})
+                if photos_cfg.get("enabled", True):
+                    photos_path = photos_cfg.get("path", "data/photos")
+                    max_files = photos_cfg.get("max_files", 100)
+                    
+                    os.makedirs(photos_path, exist_ok=True)
+                    
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    saved_path = os.path.join(photos_path, f"capture_{timestamp}.jpg")
+                    with open(saved_path, "wb") as f:
+                        f.write(jpeg.tobytes())
+                    
+                    existing = sorted([f for f in os.listdir(photos_path) if f.startswith("capture_")])
+                    if len(existing) > max_files:
+                        for old_file in existing[:-max_files]:
+                            os.remove(os.path.join(photos_path, old_file))
+            except Exception as e:
+                print(f"[capture] Save error: {e}")
+
+            result = {
                 "status": "ok",
                 "image": base64.b64encode(jpeg.tobytes()).decode("utf-8"),
-            })
+                "saved_path": saved_path,
+            }
+            return jsonify(result)
 
         @app.route("/api/config")
         def api_config_get():

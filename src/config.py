@@ -68,6 +68,11 @@ DEFAULTS = {
         "device": "/dev/ttyUSB1",
         "history_window": 3600,
     },
+    "photos": {
+        "enabled": True,
+        "path": "data/photos",
+        "max_files": 100,
+    },
 }
 
 _config_cache = None
