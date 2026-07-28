@@ -123,14 +123,37 @@ class Dashboard:
                     return jsonify({"status": "error", "message": "No frame available"}), 404
                 frame = self._frame.copy()
 
-            wifi_info = self._get_wifi_info()
-            if wifi_info:
-                y_offset = 20
-                for info in wifi_info[:3]:
-                    label = f"WiFi: {info}"
-                    cv2.putText(frame, label, (10, y_offset),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
-                    y_offset += 20
+            wifi_data = self._get_wifi_info()
+            all_macs, dynamic_macs = wifi_data if wifi_data else ([], [])
+
+            y_offset = 20
+
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cv2.putText(frame, "roadway-observer v1.1.0", (10, y_offset),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            y_offset += 20
+            cv2.putText(frame, f"Timestamp: {timestamp}", (10, y_offset),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            y_offset += 25
+
+            if all_macs:
+                cv2.putText(frame, "Detected MACs:", (10, y_offset),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+                y_offset += 20
+                for mac_info in all_macs[:5]:
+                    cv2.putText(frame, str(mac_info), (20, y_offset),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1)
+                    y_offset += 18
+
+            if dynamic_macs:
+                y_offset += 5
+                cv2.putText(frame, f"Dynamic MACs ({len(dynamic_macs)}):", (10, y_offset),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+                y_offset += 20
+                for mac in dynamic_macs[:3]:
+                    cv2.putText(frame, str(mac), (20, y_offset),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
+                    y_offset += 18
 
             ret, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, self.mjpeg_quality])
             if not ret:
@@ -165,6 +188,8 @@ class Dashboard:
                 "status": "ok",
                 "image": base64.b64encode(jpeg.tobytes()).decode("utf-8"),
                 "saved_path": saved_path,
+                "wifi_macs": all_macs,
+                "dynamic_macs": dynamic_macs,
             }
             return jsonify(result)
 
@@ -335,18 +360,25 @@ class Dashboard:
 
     def _get_wifi_info(self):
         """Get WiFi info from sniffer buffer."""
+
         if not self._wifi_events_buffer:
             return []
 
-        info = []
+        all_macs = []
+        dynamic_macs = []
         seen_macs = set()
+
         for event in self._wifi_events_buffer[-50:]:
             mac = event.get("mac", "")
             if mac and mac not in seen_macs:
                 seen_macs.add(mac)
-                mac_type = "static" if event.get("is_static") else "dynamic"
-                info.append(f"{mac[:8]}... ({mac_type})")
-        return info
+                is_static = event.get("is_static", False)
+                mac_type = "static" if is_static else "dynamic"
+                all_macs.append(f"{mac} ({mac_type})")
+                if not is_static:
+                    dynamic_macs.append(mac)
+
+        return all_macs, dynamic_macs
     def _refresh_stats_from_db(self):
         """Pull fresh stats from database."""
         if self.db:
