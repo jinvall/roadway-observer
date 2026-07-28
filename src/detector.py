@@ -34,12 +34,12 @@ class ObjectDetector:
         if USE_LITERT:
             self._interpreter = Interpreter(
                 model_path=model_path_str,
-                num_threads=4,
+                num_threads=2,
                 experimental_op_resolver_type=OpResolverType.AUTO,
             )
             self._interpreter.allocate_tensors()
         else:
-            self._interpreter = tflite.Interpreter(model_path=model_path_str, num_threads=4)
+            self._interpreter = tflite.Interpreter(model_path=model_path_str, num_threads=2)
             self._interpreter.allocate_tensors()
 
         self._input_details = self._interpreter.get_input_details()
