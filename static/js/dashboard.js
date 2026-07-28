@@ -191,6 +191,25 @@ async function fetchWifiEvents() {
   }
 }
 
+async function fetchWifiStatus() {
+  try {
+    const resp = await fetch('/api/wifi_status');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const status = $('wifi-status');
+    if (status) {
+      if (data.calibrating) {
+        status.textContent = 'Calibrating';
+      } else if (data.enabled && data.stations > 0) {
+        status.textContent = 'Active';
+      } else {
+        status.textContent = 'Disabled';
+      }
+    }
+  } catch (e) {
+  }
+}
+
 async function captureImage() {
   const btn = $('capture-btn');
   const info = $('capture-info');
@@ -244,6 +263,7 @@ function poll() {
   fetchDetections();
   fetchSoundEvents();
   fetchWifiEvents();
+  fetchWifiStatus();
 }
 
 /* SRP Theme Integration */
