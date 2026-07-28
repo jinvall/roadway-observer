@@ -12,7 +12,7 @@ from .config import load_config
 class Dashboard:
     """Flask-based web dashboard for roadway observer."""
 
-    def __init__(self, db=None):
+    def __init__(self, db=None, wifi_sniffer=None):
         cfg = load_config()
         self.host = cfg["dashboard"]["host"]
         self.port = cfg["dashboard"]["port"]
@@ -21,6 +21,7 @@ class Dashboard:
         self.mjpeg_scale = cfg["dashboard"].get("mjpeg_scale", 640)
         self.debug = cfg["dashboard"]["debug"]
         self.db = db
+        self.wifi_sniffer = wifi_sniffer
 
         self.app = Flask(
             __name__,
@@ -95,8 +96,17 @@ class Dashboard:
 
         @app.route("/api/wifi_status")
         def api_wifi_status():
-            from .wifi_sniffer import WiFiSniffer
-            sniffer = WiFiSniffer(dashboard=self)
+            sniffer = self.wifi_sniffer
+            if not sniffer:
+                return jsonify({
+                    "enabled": False,
+                    "running": False,
+                    "stations": 0,
+                    "static_macs": 0,
+                    "dynamic_macs": 0,
+                    "calibrating": False,
+                    "device": "/dev/ttyUSB1",
+                })
             return jsonify({
                 "enabled": sniffer.enabled,
                 "running": sniffer._running if hasattr(sniffer, "_running") else False,
@@ -110,7 +120,12 @@ class Dashboard:
         @app.route("/api/wifi/calibrate", methods=["POST"])
         def api_wifi_calibrate():
             duration = request.args.get("duration", 40, type=int)
-            sniffer = WiFiSniffer(dashboard=self)
+            sniffer = self.wifi_sniffer
+            if not sniffer:
+                return jsonify({
+                    "status": "error",
+                    "message": "WiFi sniffer not initialized",
+                }), 500
             sniffer.start_calibration(duration)
             return jsonify({
                 "status": "ok",

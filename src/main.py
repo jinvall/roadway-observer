@@ -38,8 +38,8 @@ class RoadwayObserver:
         self.detector = ObjectDetector()
         self.tracker = ObjectTracker()
         self.sound = SoundDetector(db=self.db)
-        self.dashboard = Dashboard(db=self.db)
-        self.wifi = WiFiSniffer(dashboard=self.dashboard)
+        self.wifi = WiFiSniffer()
+        self.dashboard = Dashboard(db=self.db, wifi_sniffer=self.wifi)
 
         self._running = False
         self._fps_counter = FPSCounter(window=30)
