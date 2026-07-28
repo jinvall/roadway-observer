@@ -11,6 +11,7 @@ class TrackedObject:
     """Represents a tracked object across frames."""
 
     def __init__(self, track_id, detection):
+        cfg = load_config()
         self.track_id = track_id
         self.class_name = detection["class_name"]
         self.category = detection["category"]
@@ -22,6 +23,7 @@ class TrackedObject:
         self.positions = [self._center()]
         self.direction = "unknown"
         self.speed = 0.0
+        self._max_positions = cfg["tracking"].get("direction_window", 30) * 2
 
     def _center(self):
         x1, y1, x2, y2 = self.bbox
@@ -33,6 +35,8 @@ class TrackedObject:
         self.last_seen = time.time()
         self.disappeared = 0
         self.positions.append(self._center())
+        if len(self.positions) > self._max_positions:
+            self.positions = self.positions[-self._max_positions:]
 
     def calc_direction(self, window=30):
         """Calculate direction from recent positions."""
