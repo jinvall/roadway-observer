@@ -47,6 +47,26 @@
         </div>
       </div>
 
+      <!-- Backend -->
+      <div class="settings-section">
+        <h2>Inference Backend</h2>
+        <div class="form-group">
+          <label for="model-backend">Backend</label>
+          <select id="model-backend" name="model.backend" data-section="model" data-key="backend">
+            <option value="local">Local (TFLite)</option>
+            <option value="cloud">Cloud (API)</option>
+          </select>
+          <div class="hint">Local = faster, Cloud = more accurate</div>
+        </div>
+        <div class="form-group">
+          <label for="model-cloud-provider">Cloud Provider</label>
+          <select id="model-cloud-provider" name="model.cloud_provider" data-section="model" data-key="cloud_provider">
+            <option value="huggingface">Hugging Face</option>
+          </select>
+          <div class="hint">Requires HF_API_KEY environment variable</div>
+        </div>
+      </div>
+
       <!-- Detection -->
       <div class="settings-section">
         <h2>Detection</h2>
@@ -124,7 +144,7 @@
 
   <script>
   const ALL_CLASSES = ['vehicle', 'pedestrian', 'animal', 'cyclist'];
-  const RESTART_KEYS = ['rtsp.url', 'model.active', 'model.available'];
+  const RESTART_KEYS = ['rtsp.url', 'model.active', 'model.available', 'model.backend'];
 
   async function loadConfig() {
     const resp = await fetch('/api/config');
@@ -139,11 +159,21 @@
       if (val !== undefined) el.value = val;
     });
 
-    const select = document.getElementById('model-active');
+    const modelSelect = document.getElementById('model-active');
     if (cfg.model?.available) {
-      select.innerHTML = cfg.model.available.map(m =>
+      modelSelect.innerHTML = cfg.model.available.map(m =>
         `<option value="${m}" ${m === cfg.model.active ? 'selected' : ''}>${m}</option>`
       ).join('');
+    }
+
+    const backendSelect = document.getElementById('model-backend');
+    if (cfg.model?.backend) {
+      backendSelect.value = cfg.model.backend;
+    }
+
+    const providerSelect = document.getElementById('model-cloud-provider');
+    if (cfg.model?.cloud_provider) {
+      providerSelect.value = cfg.model.cloud_provider;
     }
 
     const container = document.getElementById('detection-classes');
@@ -169,9 +199,15 @@
       data[section][key] = el.type === 'number' ? parseFloat(el.value) : el.value;
     });
 
-    const select = document.getElementById('model-active');
-    if (!data.model) data.model = {};
-    data.model.active = select.value;
+    const selects = ['model-active', 'model-backend', 'model-cloud-provider'];
+    selects.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        const [section, key] = id.replace('model-', '').split('-');
+        if (!data.model) data.model = {};
+        data.model[key.replace(/-/g, '_')] = el.value;
+      }
+    });
 
     const checked = [];
     document.querySelectorAll('#detection-classes input[type="checkbox"]:checked').forEach(cb => {

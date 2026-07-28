@@ -11,6 +11,10 @@ model:
   model_dir: models
   confidence_threshold: 0.5
   max_detections: 50
+  backend: local
+  cloud_provider: huggingface
+  cloud_api_key: null
+  cloud_model_id: microsoft/dit-base-beta
 detection:
   enabled_classes:
   - vehicle

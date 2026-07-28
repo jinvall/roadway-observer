@@ -96,13 +96,16 @@ class Dashboard:
             """Return current full config."""
             from .config import load_config
             cfg = load_config()
-            # Filter out path/sensitive info
             safe = {
                 "rtsp": {"url": cfg["rtsp"]["url"]},
-                "model": {"active": cfg["model"]["active"],
-                          "available": cfg["model"]["available"],
-                          "confidence_threshold": cfg["model"]["confidence_threshold"],
-                          "max_detections": cfg["model"]["max_detections"]},
+                "model": {
+                    "active": cfg["model"]["active"],
+                    "available": cfg["model"]["available"],
+                    "confidence_threshold": cfg["model"]["confidence_threshold"],
+                    "max_detections": cfg["model"]["max_detections"],
+                    "backend": cfg["model"].get("backend", "local"),
+                    "cloud_provider": cfg["model"].get("cloud_provider", "huggingface"),
+                },
                 "detection": {"enabled_classes": cfg["detection"]["enabled_classes"],
                               "frame_skip": cfg["detection"]["frame_skip"]},
                 "tracking": {"enabled": cfg["tracking"]["enabled"],
@@ -149,11 +152,14 @@ class Dashboard:
                         applied.append(key)
 
             # Check which changes require restart
-            restart_keys = ["rtsp.url", "model.active", "model.available"]
+            restart_keys = ["rtsp.url", "model.active", "model.available", "model.backend"]
             for k in restart_keys:
                 parts = k.split(".")
                 if len(parts) == 2 and parts[1] in data.get(parts[0], {}):
                     requires_restart.append(k)
+                elif len(parts) == 3 and parts[1] in data.get(parts[0], {}):
+                    if parts[2] in data.get(parts[0], {}).get(parts[1], {}):
+                        requires_restart.append(k)
 
             save_config(cfg)
             return jsonify({
