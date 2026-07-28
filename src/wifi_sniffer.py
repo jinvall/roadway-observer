@@ -105,27 +105,57 @@ class WiFiSniffer:
                     ser.close()
         except ImportError:
             try:
-                with open(self.device, encoding='utf-8', errors='ignore') as f:
+                import io
+                with open(self.device, 'rb') as f:
                     lines_read = 0
+                    buffer = b''
                     while lines_read < 10:
-                        readable, _, _ = select.select([f], [], [], 0.1)
+                        readable, _, _ = select.select([f], [], [], 0.05)
                         if not readable:
                             break
-                        line = f.readline().strip()
-                        lines_read += 1
-                        if not line or not line.startswith('{'):
+                        chunk = f.read(1024)
+                        if not chunk:
                             continue
-                        try:
-                            data = json.loads(line)
-                            mac = try_parse_mac(data)
-                            if mac:
-                                if mac not in self.station_macs:
-                                    self.station_macs.add(mac)
-                                ssid = data.get("ssid", "")
-                                if mac not in self._ssid_map:
-                                    self._ssid_map[mac] = ssid
-                        except json.JSONDecodeError:
-                            pass
+                        buffer += chunk
+                        
+                        # Find complete JSON objects in buffer
+                        while lines_read < 10:
+                            start = buffer.find(b'{')
+                            if start == -1:
+                                buffer = buffer[-100:] if len(buffer) > 100 else buffer
+                                break
+                            
+                            # Find matching closing brace
+                            depth = 0
+                            end = -1
+                            for i, b in enumerate(buffer[start:], start):
+                                if b == ord('{'):
+                                    depth += 1
+                                elif b == ord('}'):
+                                    depth -= 1
+                                    if depth == 0:
+                                        end = i + 1
+                                        break
+                            
+                            if end == -1:
+                                buffer = buffer[start:]
+                                break
+                            
+                            try:
+                                line = buffer[start:end].decode('utf-8', errors='ignore').strip()
+                                data = json.loads(line)
+                                mac = try_parse_mac(data)
+                                if mac:
+                                    if mac not in self.station_macs:
+                                        self.station_macs.add(mac)
+                                    ssid = data.get("ssid", "")
+                                    if mac not in self._ssid_map:
+                                        self._ssid_map[mac] = ssid
+                            except json.JSONDecodeError:
+                                pass
+                            
+                            lines_read += 1
+                            buffer = buffer[end:] if end < len(buffer) else b''
             except Exception as e:
                 print(f"[wifi] Read error: {e}")
         except Exception as e:
