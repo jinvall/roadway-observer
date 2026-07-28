@@ -101,7 +101,21 @@ class Dashboard:
                 "enabled": sniffer.enabled,
                 "running": sniffer._running if hasattr(sniffer, "_running") else False,
                 "stations": len(sniffer.station_macs),
+                "static_macs": len(sniffer.static_macs),
+                "dynamic_macs": len(sniffer.get_dynamic_macs()),
+                "calibrating": sniffer.is_calibrating(),
                 "device": sniffer.device,
+            })
+
+        @app.route("/api/wifi/calibrate", methods=["POST"])
+        def api_wifi_calibrate():
+            duration = request.args.get("duration", 40, type=int)
+            sniffer = WiFiSniffer(dashboard=self)
+            sniffer.start_calibration(duration)
+            return jsonify({
+                "status": "ok",
+                "message": f"Calibration started for {duration}s",
+                "calibrating": True,
             })
 
         @app.route("/video_feed")
@@ -124,36 +138,28 @@ class Dashboard:
                 frame = self._frame.copy()
 
             wifi_data = self._get_wifi_info()
-            all_macs, dynamic_macs = wifi_data if wifi_data else ([], [])
-
+            dynamic_macs = wifi_data if wifi_data else []
+            
             y_offset = 20
-
+            
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cv2.putText(frame, "roadway-observer v1.1.0", (10, y_offset),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-            y_offset += 20
-            cv2.putText(frame, f"Timestamp: {timestamp}", (10, y_offset),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            cv2.putText(frame, f"roadway-observer v1.1.0", (10, y_offset),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
             y_offset += 25
-
-            if all_macs:
-                cv2.putText(frame, "Detected MACs:", (10, y_offset),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
-                y_offset += 20
-                for mac_info in all_macs[:5]:
-                    cv2.putText(frame, str(mac_info), (20, y_offset),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1)
-                    y_offset += 18
-
+            cv2.putText(frame, f"Timestamp: {timestamp}", (10, y_offset),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+            y_offset += 25
+            
             if dynamic_macs:
-                y_offset += 5
-                cv2.putText(frame, f"Dynamic MACs ({len(dynamic_macs)}):", (10, y_offset),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
-                y_offset += 20
-                for mac in dynamic_macs[:3]:
-                    cv2.putText(frame, str(mac), (20, y_offset),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
-                    y_offset += 18
+                cv2.putText(frame, "Dynamic MACs:", (10, y_offset),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                y_offset += 30
+                for mac, ssid in dynamic_macs[:5]:
+                    ssid_display = ssid if ssid and ssid != "(hidden)" else "hidden"
+                    label = f"{mac}  {ssid_display}"
+                    cv2.putText(frame, label, (10, y_offset),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 255), 2)
+                    y_offset += 25
 
             ret, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, self.mjpeg_quality])
             if not ret:
@@ -188,7 +194,6 @@ class Dashboard:
                 "status": "ok",
                 "image": base64.b64encode(jpeg.tobytes()).decode("utf-8"),
                 "saved_path": saved_path,
-                "wifi_macs": all_macs,
                 "dynamic_macs": dynamic_macs,
             }
             return jsonify(result)
@@ -359,26 +364,22 @@ class Dashboard:
             time.sleep(0.01)
 
     def _get_wifi_info(self):
-        """Get WiFi info from sniffer buffer."""
-
+        """Get WiFi info from sniffer buffer - returns list of (mac, ssid) tuples for dynamic MACs."""
         if not self._wifi_events_buffer:
             return []
 
-        all_macs = []
         dynamic_macs = []
         seen_macs = set()
-
+        
         for event in self._wifi_events_buffer[-50:]:
             mac = event.get("mac", "")
-            if mac and mac not in seen_macs:
+            if mac and mac not in seen_macs and not event.get("is_static", False):
                 seen_macs.add(mac)
-                is_static = event.get("is_static", False)
-                mac_type = "static" if is_static else "dynamic"
-                all_macs.append(f"{mac} ({mac_type})")
-                if not is_static:
-                    dynamic_macs.append(mac)
+                ssid = event.get("ssid", "")
+                dynamic_macs.append((mac, ssid))
 
-        return all_macs, dynamic_macs
+        return dynamic_macs
+
     def _refresh_stats_from_db(self):
         """Pull fresh stats from database."""
         if self.db:

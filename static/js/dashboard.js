@@ -118,7 +118,7 @@ function updateWifiBadge(wifiInfo) {
     return;
   }
   state.wifiInfo = wifiInfo;
-  badge.textContent = 'WiFi: ' + wifiInfo.length + ' MACs';
+  badge.textContent = 'WiFi: ' + wifiInfo.length + ' dynamic';
   badge.className = 'wifi-badge active';
   if (status) status.textContent = 'Active';
 }
@@ -130,13 +130,19 @@ function updateWifiList(events) {
     return;
   }
 
-  list.innerHTML = events.slice(-30).reverse().map(e => {
+  const dynamicEvents = events.filter(e => !e.is_static);
+  if (dynamicEvents.length === 0) {
+    list.innerHTML = '<div class="detection-empty">No dynamic WiFi devices</div>';
+    return;
+  }
+
+  list.innerHTML = dynamicEvents.slice(-30).reverse().map(e => {
     const mac = e.mac || 'unknown';
-    const macType = e.is_static ? 'static' : 'dynamic';
+    const ssid = (e.ssid && e.ssid !== '(hidden)') ? e.ssid : 'hidden';
     const time = formatTime(e.timestamp);
-    return `<div class="wifi-item ${macType}">
+    return `<div class="wifi-item dynamic">
       <span class="wifi-mac">${mac}</span>
-      <span class="wifi-type">${macType}</span>
+      <span class="wifi-ssid">${ssid}</span>
       <span class="det-time">${time}</span>
     </div>`;
   }).join('');
@@ -210,6 +216,29 @@ async function captureImage() {
   }, 3000);
 }
 
+async function calibrateMacs() {
+  const btn = $('calibrate-btn');
+  const status = $('calibrate-status');
+  btn.disabled = true;
+  btn.textContent = 'Calibrating...';
+  status.textContent = 'Reading first 20s...';
+  
+  try {
+    const resp = await fetch('/api/wifi/calibrate?duration=40', { method: 'POST' });
+    if (!resp.ok) throw new Error('Calibration failed');
+    const data = await resp.json();
+    status.textContent = 'Calibration started (80s total)';
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+  }
+  
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.textContent = 'Calibrate MACs';
+    status.textContent = '';
+  }, 5000);
+}
+
 function poll() {
   fetchStats();
   fetchDetections();
@@ -273,6 +302,13 @@ function setupCaptureButton() {
   }
 }
 
+function setupCalibrateButton() {
+  const calibrateBtn = $('calibrate-btn');
+  if (calibrateBtn) {
+    calibrateBtn.addEventListener('click', calibrateMacs);
+  }
+}
+
 /* SRP Theme global */
 window.SRPTheme = {
   initTheme,
@@ -290,11 +326,13 @@ if (document.readyState === 'loading') {
     initTheme();
     setupThemeToggle();
     setupCaptureButton();
+    setupCalibrateButton();
     console.log('[dashboard.js] Real-time monitoring started');
   });
 } else {
   initTheme();
   setupThemeToggle();
   setupCaptureButton();
+  setupCalibrateButton();
   console.log('[dashboard.js] Real-time monitoring started');
 }
