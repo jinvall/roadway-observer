@@ -1,4 +1,4 @@
-/* roadway-observer Dashboard — real-time stats refresh */
+/* roadway-observer Dashboard — real-time stats refresh with SRP theme support */
 
 const POLL_INTERVAL_MS = 2000;
 
@@ -126,7 +126,6 @@ async function fetchDetections() {
     const data = await resp.json();
     updateDetections(data);
   } catch (e) {
-    // silent
   }
 }
 
@@ -137,7 +136,6 @@ async function fetchSoundEvents() {
     const data = await resp.json();
     updateSoundEvents(data);
   } catch (e) {
-    // silent
   }
 }
 
@@ -147,8 +145,75 @@ function poll() {
   fetchSoundEvents();
 }
 
-// Start polling
+/* SRP Theme Integration */
+const STORAGE_KEY = "srp-theme-mode";
+
+function applyTheme(mode) {
+  const root = document.documentElement;
+  const safeMode = mode === "srp-light" ? "srp-light" : "srp-dark";
+  root.setAttribute("data-theme", safeMode);
+  try {
+    localStorage.setItem(STORAGE_KEY, safeMode);
+    console.log("[SRP Theme] Applied:", safeMode);
+  } catch (err) {
+    console.warn("[SRP Theme] Failed to persist theme mode", err);
+  }
+  return safeMode;
+}
+
+function getSavedTheme() {
+  try {
+    return localStorage.getItem(STORAGE_KEY);
+  } catch (err) {
+    console.warn("[SRP Theme] Failed to read saved theme", err);
+    return null;
+  }
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute("data-theme") || "srp-dark";
+  const next = current === "srp-dark" ? "srp-light" : "srp-dark";
+  return applyTheme(next);
+}
+
+function initTheme(defaultMode) {
+  const saved = getSavedTheme();
+  const initial = saved || defaultMode || "srp-dark";
+  applyTheme(initial);
+  console.log("[SRP Theme] Initialized:", initial);
+}
+
+/* Theme toggle button handler */
+function setupThemeToggle() {
+  const toggleBtn = $('theme-toggle');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', function() {
+      const newTheme = toggleTheme();
+      this.textContent = newTheme === 'srp-dark' ? 'Dark' : 'Light';
+    });
+  }
+}
+
+/* SRP Theme global */
+window.SRPTheme = {
+  initTheme,
+  applyTheme,
+  toggleTheme,
+};
+
+/* Start polling */
 setInterval(poll, POLL_INTERVAL_MS);
 poll();
 
-console.log('[dashboard.js] Real-time monitoring started');
+/* Initialize theme on DOM ready */
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
+    setupThemeToggle();
+    console.log('[dashboard.js] Real-time monitoring started');
+  });
+} else {
+  initTheme();
+  setupThemeToggle();
+  console.log('[dashboard.js] Real-time monitoring started');
+}

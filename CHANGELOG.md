@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.1] - 2026-07-27
+
+### Added
+
+- SRP CSS theme integration with dark/light theme toggle
+- Theme toggle button in header for switching themes
+- Theme preference saved in localStorage
+
+### Changed
+
+- Updated `dashboard.css` with CSS variables and theme support
+- Updated `dashboard.js` with SRP theme toggle functionality
+- Updated `index.html` with theme toggle button
+
 ## [1.1.0] - 2026-07-27
 
 ### Added
