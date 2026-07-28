@@ -108,19 +108,48 @@ function updateSoundEvents(events) {
   }).join('');
 }
 
-function updateWifiBadge(wifiInfo) {
+function updateWifiBadge(wifiStatus) {
   const badge = $('wifi-badge');
   const status = $('wifi-status');
-  if (!wifiInfo || wifiInfo.length === 0) {
-    badge.textContent = 'WiFi: None';
+  if (!wifiStatus || !wifiStatus.enabled) {
+    badge.textContent = 'WiFi: Off';
     badge.className = 'wifi-badge';
     if (status) status.textContent = 'Disabled';
     return;
   }
-  state.wifiInfo = wifiInfo;
-  badge.textContent = 'WiFi: ' + wifiInfo.length + ' dynamic';
-  badge.className = 'wifi-badge active';
-  if (status) status.textContent = 'Active';
+  if (wifiStatus.calibrating) {
+    badge.textContent = 'WiFi: Calibrating';
+    badge.className = 'wifi-badge';
+    if (status) status.textContent = 'Calibrating';
+    return;
+  }
+  const dynamicCount = wifiStatus.dynamic_macs || 0;
+  if (dynamicCount > 0) {
+    badge.textContent = 'WiFi: ' + dynamicCount;
+    badge.className = 'wifi-badge active';
+    if (status) status.textContent = 'Active';
+  } else {
+    badge.textContent = 'WiFi: None';
+    badge.className = 'wifi-badge';
+    if (status) status.textContent = 'Disabled';
+  }
+}
+  if (wifiStatus.calibrating) {
+    badge.textContent = 'WiFi: Calibrating';
+    badge.className = 'wifi-badge';
+    if (status) status.textContent = 'Calibrating';
+    return;
+  }
+  const dynamicCount = wifiStatus.dynamic_macs || 0;
+  if (dynamicCount > 0) {
+    badge.textContent = 'WiFi: ' + dynamicCount + ' dynamic';
+    badge.className = 'wifi-badge active';
+    if (status) status.textContent = 'Active';
+  } else {
+    badge.textContent = 'WiFi: None';
+    badge.className = 'wifi-badge';
+    if (status) status.textContent = 'Disabled';
+  }
 }
 
 function updateWifiList(events) {
@@ -196,6 +225,7 @@ async function fetchWifiStatus() {
     const resp = await fetch('/api/wifi_status');
     if (!resp.ok) return;
     const data = await resp.json();
+    updateWifiBadge(data);
     const status = $('wifi-status');
     if (status) {
       if (data.calibrating) {
@@ -240,20 +270,20 @@ async function calibrateMacs() {
   const status = $('calibrate-status');
   btn.disabled = true;
   btn.textContent = 'Calibrating...';
-  status.textContent = 'Reading first 20s...';
+  status.textContent = 'Calibrating: 30s → wait → 30s (1 min 10s total)';
   
   try {
-    const resp = await fetch('/api/wifi/calibrate?duration=40', { method: 'POST' });
+    const resp = await fetch('/api/wifi/calibrate?duration=30', { method: 'POST' });
     if (!resp.ok) throw new Error('Calibration failed');
     const data = await resp.json();
-    status.textContent = 'Calibration started (80s total)';
+    status.textContent = data.message;
   } catch (e) {
     status.textContent = 'Error: ' + e.message;
   }
   
   setTimeout(() => {
     btn.disabled = false;
-    btn.textContent = 'Calibrate MACs';
+    btn.textContent = 'Calibrate';
     status.textContent = '';
   }, 5000);
 }

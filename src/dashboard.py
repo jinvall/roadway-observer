@@ -107,9 +107,10 @@ class Dashboard:
                     "calibrating": False,
                     "device": "/dev/ttyUSB1",
                 })
+            running = sniffer.enabled and len(sniffer.station_macs) > 0
             return jsonify({
                 "enabled": sniffer.enabled,
-                "running": sniffer._running if hasattr(sniffer, "_running") else False,
+                "running": running,
                 "stations": len(sniffer.station_macs),
                 "static_macs": len(sniffer.static_macs),
                 "dynamic_macs": len(sniffer.get_dynamic_macs()),
@@ -380,15 +381,16 @@ class Dashboard:
 
     def _get_wifi_info(self):
         """Get WiFi info from sniffer buffer - returns list of (mac, ssid) tuples for dynamic MACs."""
-        if not self._wifi_events_buffer:
+        if not self._wifi_events_buffer or not self.wifi_sniffer:
             return []
 
         dynamic_macs = []
         seen_macs = set()
+        static_macs = self.wifi_sniffer.static_macs
         
         for event in self._wifi_events_buffer[-50:]:
             mac = event.get("mac", "")
-            if mac and mac not in seen_macs and not event.get("is_static", False):
+            if mac and mac not in seen_macs and mac not in static_macs:
                 seen_macs.add(mac)
                 ssid = event.get("ssid", "")
                 dynamic_macs.append((mac, ssid))

@@ -40,6 +40,7 @@ class RoadwayObserver:
         self.sound = SoundDetector(db=self.db)
         self.wifi = WiFiSniffer()
         self.dashboard = Dashboard(db=self.db, wifi_sniffer=self.wifi)
+        self.wifi.dashboard = self.dashboard
 
         self._running = False
         self._fps_counter = FPSCounter(window=30)
@@ -149,7 +150,6 @@ class RoadwayObserver:
         self._running = True
         self.capture.start()
         self.sound.start()
-        self.wifi.start()
 
         # Start inference thread
         inference_thread = threading.Thread(
@@ -173,6 +173,9 @@ class RoadwayObserver:
 
                 self._frame_count += 1
                 self._fps_counter.tick()
+
+                # Update WiFi sniffer
+                self.wifi.update()
 
                 # Store latest frame for inference thread
                 with self._frame_lock:
@@ -214,7 +217,6 @@ class RoadwayObserver:
         self._running = False
         self.capture.stop()
         self.sound.stop()
-        self.wifi.stop()
         print("[main] Shutdown complete")
 
 
