@@ -93,6 +93,17 @@ class Dashboard:
                 )
             return jsonify(events)
 
+        @app.route("/api/wifi_status")
+        def api_wifi_status():
+            from .wifi_sniffer import WiFiSniffer
+            sniffer = WiFiSniffer(dashboard=self)
+            return jsonify({
+                "enabled": sniffer.enabled,
+                "running": sniffer._running if hasattr(sniffer, "_running") else False,
+                "stations": len(sniffer.station_macs),
+                "device": sniffer.device,
+            })
+
         @app.route("/video_feed")
         def video_feed():
             return Response(

@@ -50,23 +50,44 @@ class WiFiSniffer:
     def _parse_sniffer_output(self):
         """Parse WiFi sniffer JSON output for MAC addresses."""
         if not os.path.exists(self.device):
+            print(f"[wifi] Device not found: {self.device}")
             return
+
+        def is_valid_mac(mac):
+            parts = mac.split(':')
+            if len(parts) != 6:
+                return False
+            try:
+                [int(p, 16) for p in parts]
+                return True
+            except ValueError:
+                return False
+
+        def try_parse_mac(data):
+            mac = data.get("bssid", "")
+            if mac and is_valid_mac(mac.lower()):
+                return mac.lower()
+            return None
 
         try:
             import serial
             ser = None
             try:
                 ser = serial.Serial(self.device, 9600, timeout=0.5)
-                while True:
+                lines_read = 0
+                while lines_read < 10:
                     line = ser.readline().decode('utf-8', errors='ignore').strip()
                     if not line:
                         break
+                    lines_read += 1
+                    if not line.startswith('{'):
+                        continue
                     try:
                         data = json.loads(line)
-                        if data.get("type") == "wifi" and "bssid" in data:
-                            mac = data["bssid"].lower()
-                            if mac not in self.bssid_list:
-                                self.station_macs.add(mac)
+                        mac = try_parse_mac(data)
+                        if mac and mac not in self.station_macs:
+                            self.station_macs.add(mac)
+                            print(f"[wifi] Found MAC: {mac}")
                     except json.JSONDecodeError:
                         pass
             finally:
@@ -74,22 +95,26 @@ class WiFiSniffer:
                     ser.close()
         except ImportError:
             try:
-                with open(self.device, 'r', encoding='utf-8', errors='ignore') as f:
-                    while True:
+                with open(self.device, encoding='utf-8', errors='ignore') as f:
+                    lines_read = 0
+                    while lines_read < 10:
                         readable, _, _ = select.select([f], [], [], 0.5)
                         if not readable:
                             break
                         line = f.readline().strip()
+                        lines_read += 1
+                        if not line.startswith('{'):
+                            continue
                         try:
                             data = json.loads(line)
-                            if data.get("type") == "wifi" and "bssid" in data:
-                                mac = data["bssid"].lower()
-                                if mac not in self.bssid_list:
-                                    self.station_macs.add(mac)
+                            mac = try_parse_mac(data)
+                            if mac and mac not in self.station_macs:
+                                self.station_macs.add(mac)
+                                print(f"[wifi] Found MAC: {mac}")
                         except json.JSONDecodeError:
                             pass
             except Exception as e:
-                print(f"[wifi] Sniffer error: {e}")
+                print(f"[wifi] File read error: {e}")
         except Exception as e:
             print(f"[wifi] Serial error: {e}")
 
@@ -117,6 +142,7 @@ class WiFiSniffer:
 
     def _run(self):
         """Main sniffer loop."""
+        reported_macs = set()
         while self._running:
             try:
                 self._parse_sniffer_output()
@@ -137,13 +163,15 @@ class WiFiSniffer:
 
                 if self.dashboard:
                     for mac in self.station_macs:
-                        event = {
-                            "mac": mac,
-                            "type": "station",
-                            "is_static": mac in self.static_macs,
-                            "timestamp": now,
-                        }
-                        self.dashboard.add_wifi_event(event)
+                        if mac not in reported_macs:
+                            event = {
+                                "mac": mac,
+                                "type": "station",
+                                "is_static": mac in self.static_macs,
+                                "timestamp": now,
+                            }
+                            self.dashboard.add_wifi_event(event)
+                            reported_macs.add(mac)
 
                 time.sleep(1)
             except Exception as e:

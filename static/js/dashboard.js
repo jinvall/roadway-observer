@@ -110,14 +110,17 @@ function updateSoundEvents(events) {
 
 function updateWifiBadge(wifiInfo) {
   const badge = $('wifi-badge');
+  const status = $('wifi-status');
   if (!wifiInfo || wifiInfo.length === 0) {
     badge.textContent = 'WiFi: None';
     badge.className = 'wifi-badge';
+    if (status) status.textContent = 'Disabled';
     return;
   }
   state.wifiInfo = wifiInfo;
   badge.textContent = 'WiFi: ' + wifiInfo.length + ' MACs';
   badge.className = 'wifi-badge active';
+  if (status) status.textContent = 'Active';
 }
 
 function updateWifiList(events) {
