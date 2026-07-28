@@ -6,6 +6,7 @@ const state = {
   status: 'offline',
   lastDetections: [],
   lastSound: [],
+  wifiInfo: [],
 };
 
 function $(id) { return document.getElementById(id); }
@@ -107,6 +108,37 @@ function updateSoundEvents(events) {
   }).join('');
 }
 
+function updateWifiBadge(wifiInfo) {
+  const badge = $('wifi-badge');
+  if (!wifiInfo || wifiInfo.length === 0) {
+    badge.textContent = 'WiFi: None';
+    badge.className = 'wifi-badge';
+    return;
+  }
+  state.wifiInfo = wifiInfo;
+  badge.textContent = 'WiFi: ' + wifiInfo.length + ' MACs';
+  badge.className = 'wifi-badge active';
+}
+
+function updateWifiList(events) {
+  const list = $('wifi-list');
+  if (!events || events.length === 0) {
+    list.innerHTML = '<div class="detection-empty">No WiFi devices detected</div>';
+    return;
+  }
+
+  list.innerHTML = events.slice(-30).reverse().map(e => {
+    const mac = e.mac || 'unknown';
+    const macType = e.is_static ? 'static' : 'dynamic';
+    const time = formatTime(e.timestamp);
+    return `<div class="wifi-item ${macType}">
+      <span class="wifi-mac">${mac}</span>
+      <span class="wifi-type">${macType}</span>
+      <span class="det-time">${time}</span>
+    </div>`;
+  }).join('');
+}
+
 async function fetchStats() {
   try {
     const resp = await fetch('/api/health');
@@ -139,10 +171,47 @@ async function fetchSoundEvents() {
   }
 }
 
+async function fetchWifiEvents() {
+  try {
+    const resp = await fetch('/api/wifi_events?limit=50');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    updateWifiBadge(data);
+    updateWifiList(data);
+  } catch (e) {
+  }
+}
+
+async function captureImage() {
+  const btn = $('capture-btn');
+  const info = $('capture-info');
+  btn.disabled = true;
+  btn.textContent = 'Capturing...';
+  info.textContent = 'Processing...';
+  
+  try {
+    const resp = await fetch('/api/capture', { method: 'POST' });
+    if (!resp.ok) throw new Error('Capture failed');
+    const data = await resp.json();
+    if (data.image) {
+      info.innerHTML = '<a href="data:image/jpeg;base64,' + data.image + '" target="_blank">View Captured Image</a>';
+    }
+  } catch (e) {
+    info.textContent = 'Capture failed';
+  }
+  
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.textContent = 'Capture';
+    info.textContent = '';
+  }, 3000);
+}
+
 function poll() {
   fetchStats();
   fetchDetections();
   fetchSoundEvents();
+  fetchWifiEvents();
 }
 
 /* SRP Theme Integration */
@@ -194,6 +263,13 @@ function setupThemeToggle() {
   }
 }
 
+function setupCaptureButton() {
+  const captureBtn = $('capture-btn');
+  if (captureBtn) {
+    captureBtn.addEventListener('click', captureImage);
+  }
+}
+
 /* SRP Theme global */
 window.SRPTheme = {
   initTheme,
@@ -210,10 +286,12 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     setupThemeToggle();
+    setupCaptureButton();
     console.log('[dashboard.js] Real-time monitoring started');
   });
 } else {
   initTheme();
   setupThemeToggle();
+  setupCaptureButton();
   console.log('[dashboard.js] Real-time monitoring started');
 }

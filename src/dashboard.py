@@ -1,12 +1,10 @@
 """Flask web dashboard with MJPEG stream, real-time stats, and historical views."""
 
-import io
-import json
-import time
 import threading
+import time
+
 import cv2
-import numpy as np
-from flask import Flask, render_template, Response, jsonify, request
+from flask import Flask, Response, jsonify, render_template, request
 
 from .config import load_config
 
@@ -53,6 +51,7 @@ class Dashboard:
         self._start_time = time.time()
         self._detections_buffer = []
         self._sound_events_buffer = []
+        self._wifi_events_buffer = []
         self._buffer_lock = threading.Lock()
 
         print(f"[dashboard] UI at http://{self.host}:{self.port}")
@@ -83,6 +82,17 @@ class Dashboard:
                 events = self._sound_events_buffer[-limit:]
             return jsonify(events)
 
+        @app.route("/api/wifi_events")
+        def api_wifi_events():
+            limit = request.args.get("limit", 50, type=int)
+            with self._buffer_lock:
+                events = (
+                    self._wifi_events_buffer[-limit:]
+                    if hasattr(self, "_wifi_events_buffer")
+                    else []
+                )
+            return jsonify(events)
+
         @app.route("/video_feed")
         def video_feed():
             return Response(
@@ -90,7 +100,33 @@ class Dashboard:
                 mimetype="multipart/x-mixed-replace; boundary=frame",
             )
 
-        
+        @app.route("/api/capture", methods=["POST"])
+        def api_capture():
+            """Capture current frame with WiFi overlay."""
+            import base64
+            with self._frame_lock:
+                if self._frame is None:
+                    return jsonify({"status": "error", "message": "No frame available"}), 404
+                frame = self._frame.copy()
+
+            wifi_info = self._get_wifi_info()
+            if wifi_info:
+                y_offset = 20
+                for info in wifi_info[:3]:
+                    label = f"WiFi: {info}"
+                    cv2.putText(frame, label, (10, y_offset),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+                    y_offset += 20
+
+            ret, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, self.mjpeg_quality])
+            if not ret:
+                return jsonify({"status": "error", "message": "Failed to encode image"}), 500
+
+            return jsonify({
+                "status": "ok",
+                "image": base64.b64encode(jpeg.tobytes()).decode("utf-8"),
+            })
+
         @app.route("/api/config")
         def api_config_get():
             """Return current full config."""
@@ -105,6 +141,7 @@ class Dashboard:
                     "max_detections": cfg["model"]["max_detections"],
                     "backend": cfg["model"].get("backend", "local"),
                     "cloud_provider": cfg["model"].get("cloud_provider", "huggingface"),
+                    "cloud_model_id": cfg["model"].get("cloud_model_id", "microsoft/dit-base-beta"),
                 },
                 "detection": {"enabled_classes": cfg["detection"]["enabled_classes"],
                               "frame_skip": cfg["detection"]["frame_skip"]},
@@ -119,13 +156,16 @@ class Dashboard:
                               "port": cfg["dashboard"]["port"],
                               "mjpeg_scale": cfg["dashboard"]["mjpeg_scale"],
                               "mjpeg_quality": cfg["dashboard"]["mjpeg_quality"]},
+                "wifi_sniffer": {"enabled": cfg["wifi_sniffer"]["enabled"],
+                                 "device": cfg["wifi_sniffer"]["device"],
+                                 "history_window": cfg["wifi_sniffer"]["history_window"]},
             }
             return jsonify(safe)
 
         @app.route("/api/config", methods=["POST"])
         def api_config_set():
             """Update config values. Returns dict of applied / requires_restart."""
-            from .config import save_config, load_config
+            from .config import load_config, save_config
             data = request.get_json(force=True)
             cfg = load_config()
             requires_restart = []
@@ -143,7 +183,7 @@ class Dashboard:
                                 # Check if it's nested one more level
                                 if isinstance(cfg[key], dict):
                                     for sk in cfg[key]:
-                                        if isinstance(cfg[key][sk], dict) and subkey in cfg[key][sk]:
+                                        if subkey in cfg[key][sk]:
                                             cfg[key][sk][subkey] = subval
                                             applied.append(f"{key}.{sk}.{subkey}")
                                             break
@@ -152,7 +192,11 @@ class Dashboard:
                         applied.append(key)
 
             save_config(cfg)
-            for k in ["rtsp.url", "model.active", "model.available", "model.backend"]:
+            restart_keys = [
+                "rtsp.url", "model.active", "model.available", "model.backend",
+                "wifi_sniffer.enabled", "wifi_sniffer.device",
+            ]
+            for k in restart_keys:
                 parts = k.split(".")
                 val = data
                 for p in parts:
@@ -168,7 +212,8 @@ class Dashboard:
                 "status": "ok",
                 "applied": applied,
                 "requires_restart": requires_restart,
-                "message": "Restart required for: " + ", ".join(requires_restart) if requires_restart else "All changes applied live"
+                "message": "Restart required for: " + ", ".join(requires_restart)
+                if requires_restart else "All changes applied live",
             })
 
         @app.route("/api/config/reload")
@@ -177,6 +222,15 @@ class Dashboard:
             from .config import reload_config
             reload_config()
             return jsonify({"status": "ok", "message": "Config reloaded from disk"})
+
+        @app.route("/api/restart", methods=["POST"])
+        def api_restart():
+            """Restart the application."""
+            import os
+            import signal
+            pid = os.getpid()
+            os.kill(pid, signal.SIGTERM)
+            return jsonify({"status": "ok", "message": "Restart initiated"})
 
         @app.route("/settings")
         def settings_page():
@@ -224,6 +278,21 @@ class Dashboard:
                    b"Content-Length: " + str(len(jpeg)).encode() + b"\r\n\r\n"
                    + jpeg.tobytes() + b"\r\n")
             time.sleep(0.01)
+
+    def _get_wifi_info(self):
+        """Get WiFi info from sniffer buffer."""
+        if not self._wifi_events_buffer:
+            return []
+
+        info = []
+        seen_macs = set()
+        for event in self._wifi_events_buffer[-50:]:
+            mac = event.get("mac", "")
+            if mac and mac not in seen_macs:
+                seen_macs.add(mac)
+                mac_type = "static" if event.get("is_static") else "dynamic"
+                info.append(f"{mac[:8]}... ({mac_type})")
+        return info
     def _refresh_stats_from_db(self):
         """Pull fresh stats from database."""
         if self.db:
@@ -307,6 +376,13 @@ class Dashboard:
             self._sound_events_buffer.append(event)
             if len(self._sound_events_buffer) > 200:
                 self._sound_events_buffer = self._sound_events_buffer[-100:]
+
+    def add_wifi_event(self, event):
+        """Add WiFi event to the rolling buffer."""
+        with self._buffer_lock:
+            self._wifi_events_buffer.append(event)
+            if len(self._wifi_events_buffer) > 500:
+                self._wifi_events_buffer = self._wifi_events_buffer[-250:]
 
     def run(self, threaded=True):
         """Start the Flask server."""

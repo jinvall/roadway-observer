@@ -88,6 +88,31 @@
         </div>
       </div>
 
+      <!-- WiFi Sniffer -->
+      <div class="settings-section">
+        <h2>WiFi MAC Correlation</h2>
+        <div class="form-group">
+          <label for="wifi-enabled">Enable WiFi Sniffer</label>
+          <select id="wifi-enabled" name="wifi_sniffer.enabled" data-section="wifi_sniffer" data-key="enabled">
+            <option value="false">Disabled</option>
+            <option value="true">Enabled</option>
+          </select>
+          <div class="hint">Requires restart</div>
+        </div>
+        <div class="form-group">
+          <label for="wifi-device">Device Path</label>
+          <input type="text" id="wifi-device" name="wifi_sniffer.device"
+                 data-section="wifi_sniffer" data-key="device">
+          <div class="hint">USB WiFi sniffer device path (e.g., /dev/ttyUSB0)</div>
+        </div>
+        <div class="form-group">
+          <label for="wifi-history">History Window (seconds)</label>
+          <input type="number" id="wifi-history" name="wifi_sniffer.history_window"
+                 data-section="wifi_sniffer" data-key="history_window" min="60" max="86400" step="60">
+          <div class="hint">How long to keep MAC history (default: 3600)</div>
+        </div>
+      </div>
+
       <!-- Tracking -->
       <div class="settings-section">
         <h2>Tracking</h2>
@@ -143,6 +168,7 @@
       <div class="form-actions">
         <button type="submit" class="btn btn-primary" id="save-btn">Save Changes</button>
         <button type="button" class="btn btn-secondary" id="reload-btn">Reload from Disk</button>
+        <button type="button" class="btn btn-warning" id="restart-btn">Restart App</button>
         <span id="save-status" class="save-status"></span>
       </div>
     </form>
@@ -150,7 +176,7 @@
 
   <script>
   const ALL_CLASSES = ['vehicle', 'pedestrian', 'animal', 'cyclist'];
-  const RESTART_KEYS = ['rtsp.url', 'model.active', 'model.available', 'model.backend'];
+  const RESTART_KEYS = ['rtsp.url', 'model.active', 'model.available', 'model.backend', 'wifi_sniffer.enabled', 'wifi_sniffer.device'];
 
   async function loadConfig() {
     const resp = await fetch('/api/config');
@@ -182,6 +208,11 @@
       providerSelect.value = cfg.model.cloud_provider;
     }
 
+    const wifiEnabledSelect = document.getElementById('wifi-enabled');
+    if (wifiEnabledSelect && cfg.wifi_sniffer?.enabled !== undefined) {
+      wifiEnabledSelect.value = String(cfg.wifi_sniffer.enabled);
+    }
+
     const container = document.getElementById('detection-classes');
     const enabled = cfg.detection?.enabled_classes || [];
     container.innerHTML = ALL_CLASSES.map(c =>
@@ -208,7 +239,8 @@
     const selectMappings = {
       'model-active': ['model', 'active'],
       'model-backend': ['model', 'backend'],
-      'model-cloud-provider': ['model', 'cloud_provider']
+      'model-cloud-provider': ['model', 'cloud_provider'],
+      'wifi-enabled': ['wifi_sniffer', 'enabled']
     };
     
     Object.keys(selectMappings).forEach(id => {
@@ -283,8 +315,27 @@
     setTimeout(() => { status.textContent = ''; }, 3000);
   }
 
+  async function restartApp() {
+    const status = document.getElementById('save-status');
+    const btn = document.getElementById('restart-btn');
+    btn.disabled = true;
+    status.className = 'save-status';
+    status.textContent = 'Restarting...';
+    try {
+      const resp = await fetch('/api/restart', { method: 'POST' });
+      const result = await resp.json();
+      status.className = 'save-status success';
+      status.textContent = result.message || 'Restart initiated';
+    } catch (e) {
+      status.className = 'save-status error';
+      status.textContent = 'Error: ' + e.message;
+    }
+    setTimeout(() => { status.textContent = ''; btn.disabled = false; }, 3000);
+  }
+
   document.getElementById('settings-form').addEventListener('submit', saveSettings);
   document.getElementById('reload-btn').addEventListener('click', reloadConfig);
+  document.getElementById('restart-btn').addEventListener('click', restartApp);
   document.getElementById('theme-toggle-btn')?.addEventListener('click', function() {
     const current = document.documentElement.getAttribute('data-theme') || 'srp-dark';
     const next = current === 'srp-dark' ? 'srp-light' : 'srp-dark';

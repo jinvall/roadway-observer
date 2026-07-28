@@ -24,11 +24,16 @@
       <div class="card video-card">
         <div class="card-header">
           <h2>Live Feed</h2>
+          <div class="video-controls">
+            <button type="button" class="btn btn-sm btn-secondary" id="capture-btn">Capture</button>
+            <span class="wifi-badge" id="wifi-badge">WiFi: None</span>
+          </div>
           <div class="fps-badge" id="fps-display">0 FPS</div>
         </div>
         <div class="video-container">
           <img src="/video_feed" alt="Live feed" id="live-feed">
         </div>
+        <div class="capture-info" id="capture-info"></div>
       </div>
 
       <!-- Stats Panel -->
@@ -102,6 +107,17 @@
         </div>
         <div class="sound-list" id="sound-list">
           <div class="detection-empty">No sound events detected</div>
+        </div>
+      </div>
+
+      <!-- WiFi MAC Correlation -->
+      <div class="card wifi-card">
+        <div class="card-header">
+          <h2>WiFi MAC</h2>
+          <span class="wifi-status" id="wifi-status">Disabled</span>
+        </div>
+        <div class="wifi-list" id="wifi-list">
+          <div class="detection-empty">WiFi sniffer disabled</div>
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 rtsp:
-  url: rtsp://10.0.0.91:1945
+  url: rtsp://Bouncy:BallZach@10.0.0.153/live
   reconnect_delay: 5
   max_reconnects: 0
   frame_timeout: 10
@@ -13,12 +13,8 @@ model:
   max_detections: 50
   backend: local
   cloud_provider: huggingface
-  cloud_api_key: null
+  cloud_api_key: ''
   cloud_model_id: microsoft/dit-base-beta
-wifi_sniffer:
-  enabled: false
-  device: /dev/ttyUSB1
-  history_window: 3600
 detection:
   enabled_classes:
   - vehicle
@@ -57,3 +53,7 @@ logging:
   file: logs/observer.log
   max_size_mb: 10
   backup_count: 3
+wifi_sniffer:
+  enabled: 'true'
+  device: /dev/ttyUSB1
+  history_window: 3600

@@ -2,21 +2,21 @@
 
 import os
 import sys
-import time
 import threading
-import queue
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.config import load_config, PROJECT_ROOT
-from src.utils import setup_logging, FPSCounter
-from src.capture import RTSPSource
-from src.detector import ObjectDetector
-from src.tracker import ObjectTracker
-from src.database import RoadwayDB
 import cv2
-from src.sound_events import SoundDetector
+
+from src.capture import RTSPSource
+from src.config import PROJECT_ROOT, load_config
 from src.dashboard import Dashboard
+from src.database import RoadwayDB
+from src.detector import ObjectDetector
+from src.sound_events import SoundDetector
+from src.tracker import ObjectTracker
+from src.utils import FPSCounter, setup_logging
 from src.wifi_sniffer import WiFiSniffer
 
 
@@ -38,8 +38,8 @@ class RoadwayObserver:
         self.detector = ObjectDetector()
         self.tracker = ObjectTracker()
         self.sound = SoundDetector(db=self.db)
-        self.wifi = WiFiSniffer()
         self.dashboard = Dashboard(db=self.db)
+        self.wifi = WiFiSniffer(dashboard=self.dashboard)
 
         self._running = False
         self._fps_counter = FPSCounter(window=30)
@@ -125,10 +125,11 @@ class RoadwayObserver:
 
         # Overlay stats
         info_y = 20
+        active_tracks = len([r for r in self._latest_results if r.get("track_id") is not None])
         for key, val in [
             ("FPS", f"{self._fps_counter.fps:.1f}"),
             ("Inf", f"{self._inference_fps.fps:.1f}"),
-            ("Tracks", str(len([r for r in self._latest_results if r.get('track_id') is not None]))),
+            ("Tracks", str(active_tracks)),
         ]:
             text = f"{key}: {val}"
             cv2.putText(annotated, text, (10, info_y),
@@ -184,10 +185,13 @@ class RoadwayObserver:
                     self.dashboard.update_frame(frame)
 
                 # Update stats
+                active_tracks = len(
+                    [r for r in self._latest_results if r.get("track_id") is not None]
+                )
                 self.dashboard.update_stats({
                     "fps": self._fps_counter.fps,
                     "inference_ms": self._last_inference_time * 1000,
-                    "active_tracks": len([r for r in self._latest_results if r.get('track_id') is not None]),
+                    "active_tracks": active_tracks,
                     "model_name": self.detector.model_name,
                     "stream_alive": self.capture.is_alive,
                     "frame_width": self.capture.stats["width"],

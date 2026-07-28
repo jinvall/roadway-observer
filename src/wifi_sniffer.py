@@ -1,8 +1,8 @@
 """WiFi MAC sniffer for vehicle correlation."""
 
-import time
-import threading
 import subprocess
+import threading
+import time
 from collections import defaultdict
 
 from .config import load_config
@@ -10,8 +10,8 @@ from .config import load_config
 
 class WiFiSniffer:
     """Captures WiFi MAC addresses from USB sniffer device."""
-    
-    def __init__(self):
+
+    def __init__(self, dashboard=None):
         cfg = load_config()
         self.enabled = cfg.get("wifi_sniffer", {}).get("enabled", False)
         self.device = cfg.get("wifi_sniffer", {}).get("device", "/dev/ttyUSB0")
@@ -22,7 +22,8 @@ class WiFiSniffer:
         self._thread = None
         self._mac_history = defaultdict(list)
         self._history_window = cfg.get("wifi_sniffer", {}).get("history_window", 3600)
-        
+        self.dashboard = dashboard
+
         if self.enabled:
             print(f"[wifi] WiFi sniffer enabled (device: {self.device})")
         else:
@@ -46,7 +47,7 @@ class WiFiSniffer:
     def _parse_sniffer_output(self):
         """Parse USB sniffer output for MAC addresses."""
         try:
-            with open(self.device, 'r') as f:
+            with open(self.device) as f:
                 for line in f:
                     if 'DA:' in line or 'SA:' in line:
                         parts = line.split()
@@ -88,7 +89,21 @@ class WiFiSniffer:
                 self._detect_static_macs()
                 now = time.time()
                 for mac in list(self._mac_history.keys()):
-                    self._mac_history[mac] = [t for t in self._mac_history[mac] if now - t < self._history_window]
+                    self._mac_history[mac] = [
+                        t for t in self._mac_history[mac]
+                        if now - t < self._history_window
+                    ]
+
+                if self.dashboard:
+                    for mac in self.station_macs:
+                        event = {
+                            "mac": mac,
+                            "type": "station",
+                            "is_static": mac in self.static_macs,
+                            "timestamp": now,
+                        }
+                        self.dashboard.add_wifi_event(event)
+
                 time.sleep(1)
             except Exception as e:
                 print(f"[wifi] Loop error: {e}")
