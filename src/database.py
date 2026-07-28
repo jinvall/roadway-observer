@@ -172,19 +172,19 @@ class RoadwayDB:
     def get_todays_counts(self):
         """Return dict of today's unique tracks per category.
         
-        Counts unique track_id-minute combinations to prevent
-        the same vehicle from being counted 100+ times.
+        Counts unique track_ids for the day to prevent
+        the same vehicle from being counted multiple times.
+        Only counts tracks that have been visible at least once today.
         """
         today_start = int(time.time() - (time.time() % 86400))
         conn = self._get_conn()
         categories = ["vehicle", "pedestrian", "animal", "cyclist"]
         result = {}
         for cat in categories:
-            # Count unique track_id per minute window
             cur = conn.execute(
-                """SELECT COUNT(DISTINCT CAST(track_id AS TEXT) || '_' || CAST(CAST(timestamp AS INTEGER) / 60 AS TEXT))
+                """SELECT COUNT(DISTINCT track_id)
                    FROM detections
-                   WHERE category=? AND timestamp>=?""",
+                   WHERE category=? AND timestamp>=? AND track_id IS NOT NULL""",
                 (cat, today_start))
             result[cat] = cur.fetchone()[0]
         conn.commit()

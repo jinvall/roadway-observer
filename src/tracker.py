@@ -112,20 +112,17 @@ class ObjectTracker:
             return list(self._objects.values())
 
         if not self._objects:
-            # No existing tracks — create new ones
             for det in detections:
                 obj = TrackedObject(self._next_id, det)
                 self._objects[self._next_id] = obj
                 self._next_id += 1
         else:
-            # Match detections to existing tracks via IOU
             matched_detections = set()
             matched_tracks = set()
 
-            # Build IOU matrix
             for track_id, obj in sorted(self._objects.items()):
-                if obj.disappeared > 0:
-                    continue  # skip already-missing tracks for matching
+                if obj.disappeared >= self.max_disappeared:
+                    continue
                 best_iou = 0
                 best_det = -1
                 for i, det in enumerate(detections):
