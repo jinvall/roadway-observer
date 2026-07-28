@@ -12,7 +12,7 @@
 - Updated `detector.py` to use ai-edge-litert (faster CPU inference)
 - Updated `requirements.txt` with ai-edge-litert dependency
 - Updated `pyproject.toml` with ai-edge-litert dependency
-- Expected inference time: <110ms (vs ~400ms with TensorFlow TFLite)
+- Inference time reduced from ~284ms to ~124ms average (Intel N100 CPU)
 
 ## [1.1.1] - 2026-07-27
 
