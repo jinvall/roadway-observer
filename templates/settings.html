@@ -205,13 +205,18 @@
       data[section][key] = el.type === 'number' ? parseFloat(el.value) : el.value;
     });
 
-    const selects = ['model-active', 'model-backend', 'model-cloud-provider'];
-    selects.forEach(id => {
+    const selectMappings = {
+      'model-active': ['model', 'active'],
+      'model-backend': ['model', 'backend'],
+      'model-cloud-provider': ['model', 'cloud_provider']
+    };
+    
+    Object.keys(selectMappings).forEach(id => {
       const el = document.getElementById(id);
       if (el) {
-        const [section, key] = id.replace('model-', '').split('-');
-        if (!data.model) data.model = {};
-        data.model[key.replace(/-/g, '_')] = el.value;
+        const [section, key] = selectMappings[id];
+        if (!data[section]) data[section] = {};
+        data[section][key] = el.type === 'number' ? parseFloat(el.value) : el.value;
       }
     });
 
