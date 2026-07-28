@@ -8,11 +8,11 @@ from .config import load_config, model_path
 from .utils import load_coco_labels, class_to_category
 
 try:
-    from ai_edge_litert import interpreter as litert
-    LITE_RT_AVAILABLE = True
+    from ai_edge_litert.interpreter import Interpreter, OpResolverType
+    USE_LITERT = True
 except ImportError:
     import tensorflow.lite as tflite
-    LITE_RT_AVAILABLE = False
+    USE_LITERT = False
 
 
 class ObjectDetector:
@@ -27,28 +27,34 @@ class ObjectDetector:
         self.target_size = (cfg["detection"]["resize_width"],
                             cfg["detection"]["resize_height"])
 
-        # Load model
         model_path_str = model_path(self.model_name)
         print(f"[detector] Loading model: {model_path_str}")
-        self._interpreter = tflite.Interpreter(model_path=model_path_str, num_threads=4)
-        self._interpreter.allocate_tensors()
+        print(f"[detector] Using backend: {'LiteRT' if USE_LITERT else 'TensorFlow TFLite'}")
+
+        if USE_LITERT:
+            self._interpreter = Interpreter(
+                model_path=model_path_str,
+                num_threads=4,
+                experimental_op_resolver_type=OpResolverType.AUTO,
+            )
+            self._interpreter.allocate_tensors()
+        else:
+            self._interpreter = tflite.Interpreter(model_path=model_path_str, num_threads=4)
+            self._interpreter.allocate_tensors()
 
         self._input_details = self._interpreter.get_input_details()
         self._output_details = self._interpreter.get_output_details()
 
-        # Log input/output details
         for d in self._input_details:
             print(f"[detector] Input: {d['name']} shape={d['shape']} dtype={d['dtype']}")
         for d in self._output_details:
             print(f"[detector] Output: {d['name']} shape={d['shape']} dtype={d['dtype']}")
 
-        # Determine input shape
         input_shape = self._input_details[0]['shape']
         self._input_height = input_shape[1] if len(input_shape) > 1 else self.target_size[0]
         self._input_width = input_shape[2] if len(input_shape) > 2 else self.target_size[1]
         print(f"[detector] Model input size: {self._input_width}x{self._input_height}")
 
-        # Load labels
         self._labels = load_coco_labels()
         self._inference_time = 0.0
         self._inference_count = 0
@@ -60,7 +66,6 @@ class ObjectDetector:
         """Resize and normalize frame for model input."""
         img = cv2.resize(frame, (self._input_width, self._input_height))
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        # Add batch dimension and convert to uint8
         input_data = np.expand_dims(img, axis=0).astype(np.uint8)
         return input_data
 
@@ -68,10 +73,8 @@ class ObjectDetector:
         """Run detection on a frame. Returns list of detection dicts."""
         h, w = frame.shape[:2]
 
-        # Preprocess
         input_data = self.preprocess(frame)
 
-        # Run inference
         t0 = time.time()
         self._interpreter.set_tensor(self._input_details[0]['index'], input_data)
         self._interpreter.invoke()
@@ -80,7 +83,6 @@ class ObjectDetector:
         self._inference_time += (t1 - t0)
         self._inference_count += 1
 
-        # Parse outputs (model-dependent)
         outputs = []
         boxes = self._interpreter.get_tensor(self._output_details[0]['index'])[0]
         classes = self._interpreter.get_tensor(self._output_details[1]['index'])[0]
@@ -99,20 +101,17 @@ class ObjectDetector:
             class_name = self._labels.get(class_id, f"class_{class_id}")
             category = class_to_category(class_name)
 
-            # Skip if category not in enabled classes
             if category not in self.enabled_classes and category != "other":
-                pass  # only filter if we want to exclude unknowns
+                pass
             if category == "other":
                 continue
 
-            # Convert normalized [ymin, xmin, ymax, xmax] to pixel [x1, y1, x2, y2]
             ymin, xmin, ymax, xmax = boxes[i]
             x1 = int(xmin * w)
             y1 = int(ymin * h)
             x2 = int(xmax * w)
             y2 = int(ymax * h)
 
-            # Clamp to frame bounds
             x1, y1 = max(0, x1), max(0, y1)
             x2, y2 = min(w, x2), min(h, y2)
 
