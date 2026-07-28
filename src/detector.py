@@ -53,20 +53,17 @@ class CloudDetector:
         _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 50])
         img_bytes = buffer.tobytes()
         
-        payload = {"inputs": img_bytes}
-        
         try:
             response = requests.post(
                 self.endpoint,
                 headers=self.headers,
                 data=img_bytes,
-                timeout=30
+                timeout=10
             )
             response.raise_for_status()
             results = response.json()
             return self._parse_results(results)
         except Exception as e:
-            print(f"[cloud] Inference error: {e}")
             return []
 
     def _parse_results(self, results):
@@ -166,9 +163,11 @@ class ObjectDetector:
         h, w = frame.shape[:2]
         
         t0 = time.time()
-
+        
         if self._is_cloud:
             results = self._cloud.infer(frame)
+            if not results and not self._is_cloud:
+                print("[detector] Cloud failed, no fallback available")
         else:
             input_data = self.preprocess(frame)
             self._interpreter.set_tensor(self._input_details[0]['index'], input_data)
