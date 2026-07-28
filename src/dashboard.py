@@ -106,7 +106,7 @@ class Dashboard:
             import base64
             import os
             from datetime import datetime
-            
+
             with self._frame_lock:
                 if self._frame is None:
                     return jsonify({"status": "error", "message": "No frame available"}), 404
@@ -132,15 +132,18 @@ class Dashboard:
                 if photos_cfg.get("enabled", True):
                     photos_path = photos_cfg.get("path", "data/photos")
                     max_files = photos_cfg.get("max_files", 100)
-                    
+
                     os.makedirs(photos_path, exist_ok=True)
-                    
+
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     saved_path = os.path.join(photos_path, f"capture_{timestamp}.jpg")
                     with open(saved_path, "wb") as f:
                         f.write(jpeg.tobytes())
-                    
-                    existing = sorted([f for f in os.listdir(photos_path) if f.startswith("capture_")])
+
+                    existing = sorted([
+                        f for f in os.listdir(photos_path)
+                        if f.startswith("capture_")
+                    ])
                     if len(existing) > max_files:
                         for old_file in existing[:-max_files]:
                             os.remove(os.path.join(photos_path, old_file))
@@ -198,24 +201,37 @@ class Dashboard:
             requires_restart = []
             applied = []
 
+            def convert_value(key, val):
+                numeric_keys = [
+                    "history_window", "frame_skip", "max_detections", "confidence_threshold"
+                ]
+                if key == "enabled" and isinstance(val, str):
+                    return val.lower() == "true"
+                if key in numeric_keys and isinstance(val, str):
+                    try:
+                        return float(val)
+                    except ValueError:
+                        return val
+                return val
+
             # Walk the nested keys
             for key, value in data.items():
                 if key in cfg:
                     if isinstance(value, dict):
                         for subkey, subval in value.items():
                             if subkey in cfg[key]:
-                                cfg[key][subkey] = subval
+                                cfg[key][subkey] = convert_value(subkey, subval)
                                 applied.append(f"{key}.{subkey}")
                             else:
                                 # Check if it's nested one more level
                                 if isinstance(cfg[key], dict):
                                     for sk in cfg[key]:
                                         if subkey in cfg[key][sk]:
-                                            cfg[key][sk][subkey] = subval
+                                            cfg[key][sk][subkey] = convert_value(subkey, subval)
                                             applied.append(f"{key}.{sk}.{subkey}")
                                             break
                     else:
-                        cfg[key] = value
+                        cfg[key] = convert_value(key, value)
                         applied.append(key)
 
             save_config(cfg)
