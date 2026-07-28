@@ -185,6 +185,7 @@ class WiFiSniffer:
 
     def _run(self):
         """Main sniffer loop running in background thread."""
+        time.sleep(0.5)  # Give Flask time to start
         while self._running:
             try:
                 self._parse_sniffer_output()

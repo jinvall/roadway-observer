@@ -41,7 +41,6 @@ class RoadwayObserver:
         self.wifi = WiFiSniffer()
         self.dashboard = Dashboard(db=self.db, wifi_sniffer=self.wifi)
         self.wifi.dashboard = self.dashboard
-        self.wifi.dashboard = self.dashboard
 
         self._running = False
         self._fps_counter = FPSCounter(window=30)
