@@ -11,6 +11,7 @@
     <header>
       <h1>Settings</h1>
       <nav><a href="/" class="settings-link">&larr; Dashboard</a></nav>
+      <button id="theme-toggle-btn" class="theme-toggle">Dark</button>
     </header>
     <p class="subtitle">Live configuration. Some changes require a restart.</p>
 
@@ -123,7 +124,7 @@
 
   <script>
   const ALL_CLASSES = ['vehicle', 'pedestrian', 'animal', 'cyclist'];
-  const RESTART_KEYS = ['rtsp.url', 'model.active'];
+  const RESTART_KEYS = ['rtsp.url', 'model.active', 'model.available'];
 
   async function loadConfig() {
     const resp = await fetch('/api/config');
@@ -131,7 +132,6 @@
   }
 
   function populateForm(cfg) {
-    // Populate text/number inputs
     document.querySelectorAll('input[data-section][data-key]').forEach(el => {
       const section = el.dataset.section;
       const key = el.dataset.key;
@@ -139,7 +139,6 @@
       if (val !== undefined) el.value = val;
     });
 
-    // Populate model select
     const select = document.getElementById('model-active');
     if (cfg.model?.available) {
       select.innerHTML = cfg.model.available.map(m =>
@@ -147,18 +146,22 @@
       ).join('');
     }
 
-    // Populate detection classes checkboxes
     const container = document.getElementById('detection-classes');
     const enabled = cfg.detection?.enabled_classes || [];
     container.innerHTML = ALL_CLASSES.map(c =>
       `<label><input type="checkbox" value="${c}" ${enabled.includes(c) ? 'checked' : ''}> ${c}</label>`
     ).join('');
+
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 'srp-dark';
+      themeToggle.textContent = currentTheme === 'srp-dark' ? 'Dark' : 'Light';
+    }
   }
 
   function collectFormData() {
     const data = {};
 
-    // Collect text/number inputs
     document.querySelectorAll('input[data-section][data-key]').forEach(el => {
       const section = el.dataset.section;
       const key = el.dataset.key;
@@ -166,12 +169,10 @@
       data[section][key] = el.type === 'number' ? parseFloat(el.value) : el.value;
     });
 
-    // Collect select
     const select = document.getElementById('model-active');
     if (!data.model) data.model = {};
     data.model.active = select.value;
 
-    // Collect checkboxes for detection classes
     const checked = [];
     document.querySelectorAll('#detection-classes input[type="checkbox"]:checked').forEach(cb => {
       checked.push(cb.value);
@@ -235,9 +236,17 @@
     setTimeout(() => { status.textContent = ''; }, 3000);
   }
 
-  // Init
   document.getElementById('settings-form').addEventListener('submit', saveSettings);
   document.getElementById('reload-btn').addEventListener('click', reloadConfig);
+  document.getElementById('theme-toggle-btn')?.addEventListener('click', function() {
+    const current = document.documentElement.getAttribute('data-theme') || 'srp-dark';
+    const next = current === 'srp-dark' ? 'srp-light' : 'srp-dark';
+    document.documentElement.setAttribute('data-theme', next);
+    this.textContent = next === 'srp-dark' ? 'Dark' : 'Light';
+    try {
+      localStorage.setItem('srp-theme-mode', next);
+    } catch (err) {}
+  });
 
   loadConfig().then(cfg => {
     populateForm(cfg);
