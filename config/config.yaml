@@ -4,7 +4,7 @@ rtsp:
   max_reconnects: 0
   frame_timeout: 10
 model:
-  active: ssd_mobilenet_v2_coco_quant_postprocess.tflite
+  active: efficientdet_lite0_320_ptq.tflite
   available:
   - efficientdet_lite0_320_ptq.tflite
   - ssd_mobilenet_v2_coco_quant_postprocess.tflite
@@ -17,7 +17,7 @@ detection:
   - pedestrian
   - animal
   - cyclist
-  frame_skip: 1
+  frame_skip: 2
   resize_width: 320
   resize_height: 320
 tracking:
