@@ -1,5 +1,7 @@
 # Core dependencies
-tensorflow>=2.21.0
+# Note: ai-edge-litert is preferred for TFLite inference on CPU
+ai-edge-litert>=2.0.0
+tensorflow>=2.21.0  # Fallback if ai-edge-litert unavailable
 opencv-python-headless>=5.0.0
 flask>=3.0.0
 pyyaml>=6.0

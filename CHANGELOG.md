@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.2] - 2026-07-27
+
+### Added
+
+- ai-edge-litert package for optimized TFLite CPU inference
+- LiteRT interpreter as preferred TFLite backend (fallback to TensorFlow)
+
+### Changed
+
+- Updated `detector.py` to use ai-edge-litert (faster CPU inference)
+- Updated `requirements.txt` with ai-edge-litert dependency
+- Updated `pyproject.toml` with ai-edge-litert dependency
+- Expected inference time: <110ms (vs ~400ms with TensorFlow TFLite)
+
 ## [1.1.1] - 2026-07-27
 
 ### Added

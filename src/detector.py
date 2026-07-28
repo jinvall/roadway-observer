@@ -2,11 +2,17 @@
 
 import time
 import numpy as np
-import tensorflow.lite as tflite
 
 import cv2
 from .config import load_config, model_path
 from .utils import load_coco_labels, class_to_category
+
+try:
+    from ai_edge_litert import interpreter as litert
+    LITE_RT_AVAILABLE = True
+except ImportError:
+    import tensorflow.lite as tflite
+    LITE_RT_AVAILABLE = False
 
 
 class ObjectDetector:
