@@ -1,5 +1,8 @@
 """WiFi MAC sniffer for vehicle correlation."""
 
+import json
+import os
+import select
 import subprocess
 import threading
 import time
@@ -45,40 +48,50 @@ class WiFiSniffer:
             print(f"[wifi] Scan error: {e}")
 
     def _parse_sniffer_output(self):
-        """Parse USB sniffer output for MAC addresses."""
+        """Parse WiFi sniffer JSON output for MAC addresses."""
+        if not os.path.exists(self.device):
+            return
+
         try:
             import serial
             ser = None
             try:
-                ser = serial.Serial(self.device, 9600, timeout=0.1)
-                line = ser.readline().decode('utf-8', errors='ignore')
-                if 'DA:' in line or 'SA:' in line:
-                    parts = line.split()
-                    for part in parts:
-                        if ':' in part and len(part) == 17:
-                            mac = part.lower()
+                ser = serial.Serial(self.device, 9600, timeout=0.5)
+                while True:
+                    line = ser.readline().decode('utf-8', errors='ignore').strip()
+                    if not line:
+                        break
+                    try:
+                        data = json.loads(line)
+                        if data.get("type") == "wifi" and "bssid" in data:
+                            mac = data["bssid"].lower()
                             if mac not in self.bssid_list:
                                 self.station_macs.add(mac)
+                    except json.JSONDecodeError:
+                        pass
             finally:
                 if ser:
                     ser.close()
         except ImportError:
             try:
                 with open(self.device, 'r', encoding='utf-8', errors='ignore') as f:
-                    import select
-                    if select.select([f], [], [], 0.1)[0]:
-                        line = f.readline()
-                        if 'DA:' in line or 'SA:' in line:
-                            parts = line.split()
-                            for part in parts:
-                                if ':' in part and len(part) == 17:
-                                    mac = part.lower()
-                                    if mac not in self.bssid_list:
-                                        self.station_macs.add(mac)
+                    while True:
+                        readable, _, _ = select.select([f], [], [], 0.5)
+                        if not readable:
+                            break
+                        line = f.readline().strip()
+                        try:
+                            data = json.loads(line)
+                            if data.get("type") == "wifi" and "bssid" in data:
+                                mac = data["bssid"].lower()
+                                if mac not in self.bssid_list:
+                                    self.station_macs.add(mac)
+                        except json.JSONDecodeError:
+                            pass
             except Exception as e:
                 print(f"[wifi] Sniffer error: {e}")
         except Exception as e:
-            pass
+            print(f"[wifi] Serial error: {e}")
 
     def _detect_static_macs(self):
         """Detect static MACs from history."""
@@ -107,15 +120,15 @@ class WiFiSniffer:
         while self._running:
             try:
                 self._parse_sniffer_output()
-                
+
                 now = time.time()
                 for mac in list(self.station_macs):
                     if mac not in self._mac_history:
                         self._mac_history[mac] = []
                     self._mac_history[mac].append(now)
-                
+
                 self._detect_static_macs()
-                
+
                 for mac in list(self._mac_history.keys()):
                     self._mac_history[mac] = [
                         t for t in self._mac_history[mac]
