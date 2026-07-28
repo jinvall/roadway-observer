@@ -1,5 +1,5 @@
 rtsp:
-  url: rtsp://Bouncy:BallZach@10.0.0.153/live
+  url: rtsp://10.0.0.91:1945
   reconnect_delay: 5
   max_reconnects: 0
   frame_timeout: 10
@@ -15,6 +15,10 @@ model:
   cloud_provider: huggingface
   cloud_api_key: null
   cloud_model_id: microsoft/dit-base-beta
+wifi_sniffer:
+  enabled: false
+  device: /dev/ttyUSB1
+  history_window: 3600
 detection:
   enabled_classes:
   - vehicle

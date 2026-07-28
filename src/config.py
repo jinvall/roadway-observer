@@ -63,6 +63,11 @@ DEFAULTS = {
         "max_size_mb": 10,
         "backup_count": 3,
     },
+    "wifi_sniffer": {
+        "enabled": False,
+        "device": "/dev/ttyUSB1",
+        "history_window": 3600,
+    },
 }
 
 _config_cache = None

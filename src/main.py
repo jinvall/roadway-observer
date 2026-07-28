@@ -17,6 +17,7 @@ from src.database import RoadwayDB
 import cv2
 from src.sound_events import SoundDetector
 from src.dashboard import Dashboard
+from src.wifi_sniffer import WiFiSniffer
 
 
 class RoadwayObserver:
@@ -37,6 +38,7 @@ class RoadwayObserver:
         self.detector = ObjectDetector()
         self.tracker = ObjectTracker()
         self.sound = SoundDetector(db=self.db)
+        self.wifi = WiFiSniffer()
         self.dashboard = Dashboard(db=self.db)
 
         self._running = False
@@ -146,6 +148,7 @@ class RoadwayObserver:
         self._running = True
         self.capture.start()
         self.sound.start()
+        self.wifi.start()
 
         # Start inference thread
         inference_thread = threading.Thread(
@@ -207,6 +210,7 @@ class RoadwayObserver:
         self._running = False
         self.capture.stop()
         self.sound.stop()
+        self.wifi.stop()
         print("[main] Shutdown complete")
 
 
