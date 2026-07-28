@@ -8,7 +8,6 @@ model:
   available:
   - efficientdet_lite0_320_ptq.tflite
   - ssd_mobilenet_v2_coco_quant_postprocess.tflite
-  - yolov5n.onnx
   model_dir: models
   confidence_threshold: 0.5
   max_detections: 50

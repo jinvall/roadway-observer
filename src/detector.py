@@ -8,11 +8,12 @@ from .config import load_config, model_path
 from .utils import load_coco_labels, class_to_category
 
 try:
-    from ai_edge_litert.interpreter import Interpreter, OpResolverType
-    USE_LITERT = True
+    from ai_edge_litert.interpreter import Interpreter as LiteRTInterpreter, OpResolverType
+    HAS_LITERT = True
 except ImportError:
-    import tensorflow.lite as tflite
-    USE_LITERT = False
+    HAS_LITERT = False
+
+import tensorflow.lite as tflite
 
 
 class ObjectDetector:
@@ -29,18 +30,18 @@ class ObjectDetector:
 
         model_path_str = model_path(self.model_name)
         print(f"[detector] Loading model: {model_path_str}")
-        print(f"[detector] Using backend: {'LiteRT' if USE_LITERT else 'TensorFlow TFLite'}")
 
-        if USE_LITERT:
-            self._interpreter = Interpreter(
+        if HAS_LITERT:
+            self._interpreter = LiteRTInterpreter(
                 model_path=model_path_str,
                 num_threads=2,
                 experimental_op_resolver_type=OpResolverType.AUTO,
             )
-            self._interpreter.allocate_tensors()
+            print(f"[detector] Using backend: LiteRT")
         else:
             self._interpreter = tflite.Interpreter(model_path=model_path_str, num_threads=2)
-            self._interpreter.allocate_tensors()
+            print(f"[detector] Using backend: TensorFlow TFLite")
+        self._interpreter.allocate_tensors()
 
         self._input_details = self._interpreter.get_input_details()
         self._output_details = self._interpreter.get_output_details()
