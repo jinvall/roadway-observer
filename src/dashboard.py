@@ -151,17 +151,19 @@ class Dashboard:
                         cfg[key] = value
                         applied.append(key)
 
-            # Check which changes require restart
-            restart_keys = ["rtsp.url", "model.active", "model.available", "model.backend"]
-            for k in restart_keys:
-                parts = k.split(".")
-                if len(parts) == 2 and parts[1] in data.get(parts[0], {}):
-                    requires_restart.append(k)
-                elif len(parts) == 3 and parts[1] in data.get(parts[0], {}):
-                    if parts[2] in data.get(parts[0], {}).get(parts[1], {}):
-                        requires_restart.append(k)
-
             save_config(cfg)
+            for k in ["rtsp.url", "model.active", "model.available", "model.backend"]:
+                parts = k.split(".")
+                val = data
+                for p in parts:
+                    if isinstance(val, dict) and p in val:
+                        val = val[p]
+                    else:
+                        val = None
+                        break
+                if val is not None:
+                    requires_restart.append(k)
+
             return jsonify({
                 "status": "ok",
                 "applied": applied,
