@@ -151,6 +151,10 @@ class RoadwayObserver:
 
     def _check_inference_threshold(self):
         threshold_ms = self.cfg["model"].get("inference_threshold_ms", 200)
+        if threshold_ms is None:
+            threshold_ms = 200
+        if self._last_inference_time is None:
+            return
         if self._last_inference_time * 1000 > threshold_ms:
             self._skip_frames = True
             self._skip_counter = 0

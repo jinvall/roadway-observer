@@ -40,16 +40,20 @@ class TrackedObject:
 
     def calc_direction(self, window=30):
         """Calculate direction from recent positions."""
-        positions = self.positions[-window:]
-        if len(positions) < 5:
+        if window is None:
+            window = 30
+        positions = self.positions[-window:] if window else self.positions
+        if not positions or len(positions) < 5:
             self.direction = "unknown"
             return "unknown"
 
         # Average x and y movement over the window
-        dx = positions[-1][0] - positions[0][0]
-        dy = positions[-1][1] - positions[0][1]
+        dx = positions[-1][0] - positions[0][0] if positions[-1] else 0
+        dy = positions[-1][1] - positions[0][1] if positions[-1] else 0
 
         # Determine direction
+        if dx is None: dx = 0
+        if dy is None: dy = 0
         if abs(dx) < 10 and abs(dy) < 10:
             self.direction = "stationary"
         elif abs(dx) > abs(dy):
@@ -59,7 +63,7 @@ class TrackedObject:
 
         # Calculate speed (pixels per second)
         elapsed = self.last_seen - self.first_seen
-        if elapsed > 0:
+        if elapsed and elapsed > 0:
             distance = math.sqrt(dx ** 2 + dy ** 2)
             self.speed = distance / elapsed
 
