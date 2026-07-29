@@ -363,8 +363,11 @@ class Dashboard:
             """Restart the application."""
             import os
             import signal
-            pid = os.getpid()
-            os.kill(pid, signal.SIGTERM)
+            import threading
+            def restart():
+                time.sleep(0.5)  # Let response send
+                os.kill(os.getpid(), signal.SIGTERM)
+            threading.Thread(target=restart, daemon=True).start()
             return jsonify({"status": "ok", "message": "Restart initiated"})
 
         @app.route("/settings")
