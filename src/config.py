@@ -22,6 +22,7 @@ DEFAULTS = {
         "model_dir": "models",
         "confidence_threshold": 0.5,
         "max_detections": 100,
+        "inference_threshold_ms": 200,
     },
     "detection": {
         "enabled_classes": ["vehicle", "pedestrian", "animal", "cyclist"],

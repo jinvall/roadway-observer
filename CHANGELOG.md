@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.1.4] - 2026-07-28
+
+### Added
+
+- WiFi overlay toggle button in video controls
+- `rf_double_sieve.py` calibration script with automatic ignore list update
+- API endpoint `/api/wifi/overlay` for toggling WiFi overlay
+- API endpoint `/api/wifi/calibrate` runs external calibration script
+- Broadcast MAC `FF:FF:FF:FF:FF:FF` added to default ignore list
+
+### Fixed
+
+- Maintenance loop error handling to prevent silent failures
+- Overlay stats resolution display operator precedence bug
+- Removed duplicate/unreachable WiFi code in dashboard.js
+- WiFi sniffer now filters ignored MACs from overlay display
+
+### Changed
+
+- WiFi sniffer loads ignore list from `config/static_ignore.json`
+- Calibration now runs as external Python process with subprocess
+- WiFi badge shows "WiFi Overlay: On/Off" toggle button
+
 ## [1.1.3] - 2026-07-28
 
 ### Added

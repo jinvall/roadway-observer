@@ -140,11 +140,22 @@ class RoadwayObserver:
         return annotated
 
     def _maintenance_loop(self):
-        now = time.time()
-        if now - self._last_purge > self.cfg["database"]["vacuum_interval"]:
-            self.db.purge_old_events()
-            self.db.vacuum()
-            self._last_purge = now
+        try:
+            now = time.time()
+            if now - self._last_purge > self.cfg["database"]["vacuum_interval"]:
+                self.db.purge_old_events()
+                self.db.vacuum()
+                self._last_purge = now
+        except Exception as e:
+            print(f"[main] Maintenance error: {e}")
+
+    def _check_inference_threshold(self):
+        threshold_ms = self.cfg["model"].get("inference_threshold_ms", 200)
+        if self._last_inference_time * 1000 > threshold_ms:
+            print(f"[main] Inference {self._last_inference_time*1000:.0f}ms exceeds threshold {threshold_ms}ms, purging buffer")
+            self._latest_results = []
+            self.dashboard._detections_buffer = []
+            self._inference_fps = FPSCounter(window=30)
 
     def run(self):
         self._running = True
@@ -200,6 +211,7 @@ class RoadwayObserver:
                 })
 
                 self._maintenance_loop()
+                self._check_inference_threshold()
 
         except KeyboardInterrupt:
             print("[main] Keyboard interrupt")

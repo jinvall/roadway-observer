@@ -124,15 +124,18 @@ class ObjectDetector:
             self._is_cloud = True
         else:
             if HAS_LITERT:
+                import os
+                num_threads = int(os.environ.get("OMP_NUM_THREADS", "4"))
                 self._interpreter = LiteRTInterpreter(
                     model_path=model_path_str,
-                    num_threads=2,
+                    num_threads=num_threads,
                     experimental_op_resolver_type=OpResolverType.AUTO,
                 )
-                print(f"[detector] Using backend: LiteRT")
+                print(f"[detector] Using backend: LiteRT ({num_threads} threads)")
             else:
-                self._interpreter = tflite.Interpreter(model_path=model_path_str, num_threads=2)
-                print(f"[detector] Using backend: TensorFlow TFLite")
+                num_threads = 2
+                self._interpreter = tflite.Interpreter(model_path=model_path_str, num_threads=num_threads)
+                print(f"[detector] Using backend: TensorFlow TFLite ({num_threads} threads)")
             self._interpreter.allocate_tensors()
             
             self._input_details = self._interpreter.get_input_details()

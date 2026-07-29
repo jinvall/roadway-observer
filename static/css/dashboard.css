@@ -167,6 +167,22 @@ header h1 {
   font-family: 'SF Mono', monospace;
 }
 
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.btn-outline:hover {
+  background: var(--color-border);
+}
+
+.btn-outline.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-bg);
+}
+
 /* Main Grid */
 .main-grid {
   display: grid;

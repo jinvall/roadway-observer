@@ -41,9 +41,22 @@ Edit `config/config.yaml` to set:
 |---|---|---|
 | `rtsp.url` | `rtsp://...` | Camera RTSP URL |
 | `model.active` | `efficientdet_lite0_320_ptq` | Model to use |
+| `model.inference_threshold_ms` | `200` | Buffer purge threshold in ms |
 | `detection.enabled_classes` | `[vehicle, pedestrian, animal, cyclist]` | Tracked classes |
 | `dashboard.port` | `8080` | Web UI port |
 | `database.retention_days` | `90` | Event retention |
+
+### WiFi MAC Correlation
+
+Set `wifi_sniffer.enabled: true` to enable WiFi MAC correlation for vehicle detection.
+
+| Key | Default | Description |
+|---|---|---|
+| `wifi_sniffer.enabled` | `false` | Enable WiFi sniffer |
+| `wifi_sniffer.device` | `/dev/ttyUSB1` | USB sniffer device |
+| `wifi_sniffer.history_window` | `3600` | MAC history window in seconds |
+
+Use `config/static_ignore.json` to ignore specific MAC addresses.
 
 ## Architecture
 

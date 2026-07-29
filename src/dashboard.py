@@ -120,19 +120,44 @@ class Dashboard:
 
         @app.route("/api/wifi/calibrate", methods=["POST"])
         def api_wifi_calibrate():
-            duration = request.args.get("duration", 40, type=int)
+            import subprocess
+            from pathlib import Path
             sniffer = self.wifi_sniffer
             if not sniffer:
                 return jsonify({
                     "status": "error",
                     "message": "WiFi sniffer not initialized",
                 }), 500
-            sniffer.start_calibration(duration)
-            return jsonify({
-                "status": "ok",
-                "message": f"Calibration started for {duration}s",
-                "calibrating": True,
-            })
+            if sniffer._calibration_running:
+                return jsonify({
+                    "status": "error",
+                    "message": "Calibration already in progress",
+                }), 400
+            sniffer._calibration_running = True
+            try:
+                subprocess.Popen(
+                    ["python3", str(Path(__file__).resolve().parent.parent / "src" / "rf_double_sieve.py"), sniffer.device],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                return jsonify({
+                    "status": "ok",
+                    "message": "Calibration started (30s scan + 30s wait + 30s scan = ~1 min 40s)",
+                    "calibrating": True,
+                })
+            except Exception as e:
+                sniffer._calibration_running = False
+                return jsonify({
+                    "status": "error",
+                    "message": str(e),
+                }), 500
+
+        @app.route("/api/wifi/overlay", methods=["POST"])
+        def api_wifi_overlay():
+            enabled = request.json.get("enabled", True)
+            if self.wifi_sniffer:
+                self.wifi_sniffer._overlay_enabled = enabled
+            return jsonify({"status": "ok", "enabled": enabled})
 
         @app.route("/video_feed")
         def video_feed():
@@ -383,14 +408,18 @@ class Dashboard:
         """Get WiFi info from sniffer buffer - returns list of (mac, ssid) tuples for dynamic MACs."""
         if not self._wifi_events_buffer or not self.wifi_sniffer:
             return []
+        
+        if not getattr(self.wifi_sniffer, '_overlay_enabled', True):
+            return []
 
         dynamic_macs = []
         seen_macs = set()
         static_macs = self.wifi_sniffer.static_macs
+        ignore_macs = self.wifi_sniffer._ignore_macs
         
         for event in self._wifi_events_buffer[-50:]:
             mac = event.get("mac", "")
-            if mac and mac not in seen_macs and mac not in static_macs:
+            if mac and mac not in seen_macs and mac not in static_macs and mac not in ignore_macs:
                 seen_macs.add(mac)
                 ssid = event.get("ssid", "")
                 dynamic_macs.append((mac, ssid))

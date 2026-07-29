@@ -7,6 +7,7 @@ const state = {
   lastDetections: [],
   lastSound: [],
   wifiInfo: [],
+  wifiOverlay: true,
 };
 
 function $(id) { return document.getElementById(id); }
@@ -51,7 +52,7 @@ function updateStats(data) {
   $('sys-inference').textContent = (data.inference_ms || 0).toFixed(1) + 'ms';
   $('sys-tracks').textContent = data.active_tracks || 0;
   $('sys-model').textContent = data.model_name || '-';
-  $('sys-resolution').textContent = data.frame_width + 'x' + data.frame_height || '-';
+  $('sys-resolution').textContent = data.frame_width && data.frame_height ? data.frame_width + 'x' + data.frame_height : '-';
   $('uptime').textContent = formatUptime(data.uptime_seconds || 0);
 
   if (data.status === 'ok') {
@@ -111,16 +112,25 @@ function updateSoundEvents(events) {
 function updateWifiBadge(wifiStatus) {
   const badge = $('wifi-badge');
   const status = $('wifi-status');
+  const toggleBtn = $('wifi-overlay-toggle');
   if (!wifiStatus || !wifiStatus.enabled) {
     badge.textContent = 'WiFi: Off';
     badge.className = 'wifi-badge';
     if (status) status.textContent = 'Disabled';
+    if (toggleBtn) {
+      toggleBtn.disabled = true;
+      toggleBtn.classList.remove('active');
+    }
     return;
   }
   if (wifiStatus.calibrating) {
     badge.textContent = 'WiFi: Calibrating';
     badge.className = 'wifi-badge';
     if (status) status.textContent = 'Calibrating';
+    if (toggleBtn) {
+      toggleBtn.disabled = true;
+      toggleBtn.classList.remove('active');
+    }
     return;
   }
   const dynamicCount = wifiStatus.dynamic_macs || 0;
@@ -133,22 +143,13 @@ function updateWifiBadge(wifiStatus) {
     badge.className = 'wifi-badge';
     if (status) status.textContent = 'Disabled';
   }
-}
-  if (wifiStatus.calibrating) {
-    badge.textContent = 'WiFi: Calibrating';
-    badge.className = 'wifi-badge';
-    if (status) status.textContent = 'Calibrating';
-    return;
-  }
-  const dynamicCount = wifiStatus.dynamic_macs || 0;
-  if (dynamicCount > 0) {
-    badge.textContent = 'WiFi: ' + dynamicCount + ' dynamic';
-    badge.className = 'wifi-badge active';
-    if (status) status.textContent = 'Active';
-  } else {
-    badge.textContent = 'WiFi: None';
-    badge.className = 'wifi-badge';
-    if (status) status.textContent = 'Disabled';
+  if (toggleBtn) {
+    toggleBtn.disabled = false;
+    if (state.wifiOverlay) {
+      toggleBtn.classList.add('active');
+    } else {
+      toggleBtn.classList.remove('active');
+    }
   }
 }
 
@@ -270,22 +271,41 @@ async function calibrateMacs() {
   const status = $('calibrate-status');
   btn.disabled = true;
   btn.textContent = 'Calibrating...';
-  status.textContent = 'Calibrating: 30s → wait → 30s (1 min 10s total)';
+  status.textContent = 'Running double-sieve calibration...';
   
   try {
-    const resp = await fetch('/api/wifi/calibrate?duration=30', { method: 'POST' });
+    const resp = await fetch('/api/wifi/calibrate', { method: 'POST' });
     if (!resp.ok) throw new Error('Calibration failed');
     const data = await resp.json();
     status.textContent = data.message;
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = 'Calibrate';
+      status.textContent = '';
+    }, 5000);
   } catch (e) {
     status.textContent = 'Error: ' + e.message;
-  }
-  
-  setTimeout(() => {
     btn.disabled = false;
     btn.textContent = 'Calibrate';
-    status.textContent = '';
-  }, 5000);
+  }
+}
+
+async function toggleWifiOverlay() {
+  const btn = $('wifi-overlay-toggle');
+  if (!btn) return;
+  const newState = !state.wifiOverlay;
+  state.wifiOverlay = newState;
+  btn.classList.toggle('active', newState);
+  btn.textContent = newState ? 'WiFi Overlay: On' : 'WiFi Overlay: Off';
+  try {
+    await fetch('/api/wifi/overlay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: newState })
+    });
+  } catch (e) {
+    console.error('Overlay toggle failed:', e);
+  }
 }
 
 function poll() {
@@ -359,6 +379,13 @@ function setupCalibrateButton() {
   }
 }
 
+function setupWifiOverlayToggle() {
+  const toggleBtn = $('wifi-overlay-toggle');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', toggleWifiOverlay);
+  }
+}
+
 /* SRP Theme global */
 window.SRPTheme = {
   initTheme,
@@ -377,6 +404,7 @@ if (document.readyState === 'loading') {
     setupThemeToggle();
     setupCaptureButton();
     setupCalibrateButton();
+    setupWifiOverlayToggle();
     console.log('[dashboard.js] Real-time monitoring started');
   });
 } else {
@@ -384,5 +412,6 @@ if (document.readyState === 'loading') {
   setupThemeToggle();
   setupCaptureButton();
   setupCalibrateButton();
+  setupWifiOverlayToggle();
   console.log('[dashboard.js] Real-time monitoring started');
 }

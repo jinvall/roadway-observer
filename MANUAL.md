@@ -79,6 +79,46 @@ sound_events:
 
 Events auto-purged after 90 days (configurable). DB vacuumed hourly.
 
+## WiFi MAC Correlation
+
+Enable WiFi MAC correlation for vehicle detection by setting `wifi_sniffer.enabled: true` in `config/config.yaml`.
+
+### WiFi Calibration
+
+1. Open the WiFi MAC panel on the dashboard
+2. Click "Calibrate MACs" button
+3. The system runs two 30-second scans with a 30-second wait period
+4. MACs appearing in both scans are added to `config/static_ignore.json`
+5. These MACs are filtered from the overlay display
+
+### WiFi Overlay Toggle
+
+- **Capture button**: Takes a single frame with WiFi MAC overlay
+- **WiFi Overlay toggle**: Enables/disables WiFi MAC display on live feed
+- Only transient (non-ignored) MACs are displayed
+
+### Ignored MACs
+
+Edit `config/static_ignore.json` to manually add MACs that should not appear in overlays:
+
+```json
+{
+  "ignore_macs": [
+    "FF:FF:FF:FF:FF:FF",
+    "00:11:22:33:44:55"
+  ]
+}
+```
+
+## Inference Threshold
+
+When inference time exceeds `model.inference_threshold_ms` (default: 200ms), the detection buffer is purged to prevent memory buildup:
+
+```yaml
+model:
+  inference_threshold_ms: 200
+```
+
 ## Troubleshooting
 
 - No video? Check RTSP URL, ping camera, test with ffplay

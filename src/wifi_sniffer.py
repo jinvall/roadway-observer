@@ -7,8 +7,20 @@ import subprocess
 import threading
 import time
 from collections import defaultdict
+from pathlib import Path
 
-from .config import load_config
+from .config import load_config, PROJECT_ROOT
+
+
+IGNORE_PATH = PROJECT_ROOT / "config" / "static_ignore.json"
+
+
+def load_ignore_list():
+    if IGNORE_PATH.exists():
+        with open(IGNORE_PATH, "r") as f:
+            data = json.load(f)
+            return {m.strip().upper() for m in data.get("ignore_macs", [])}
+    return set()
 
 
 def is_valid_mac(mac):
@@ -39,6 +51,7 @@ class WiFiSniffer:
         self.bssid_list = set()
         self.station_macs = set()
         self.static_macs = set()
+        self._ignore_macs = load_ignore_list()
         self._mac_history = defaultdict(list)
         self._history_window = cfg.get("wifi_sniffer", {}).get("history_window", 3600)
         self._ssid_map = {}
@@ -49,12 +62,34 @@ class WiFiSniffer:
         self._running = False
         self._thread = None
         self._reported_macs = set()
+        self._overlay_enabled = True
+        self._calibration_running = False
         self.dashboard = dashboard
 
         if self.enabled:
             print(f"[wifi] WiFi sniffer enabled (device: {self.device})")
         else:
             print("[wifi] WiFi sniffer disabled")
+
+    def is_ignored(self, mac):
+        return mac.upper() in self._ignore_macs
+
+    def reload_ignore_list(self):
+        self._ignore_macs = load_ignore_list()
+        print(f"[wifi] Reloaded ignore list: {len(self._ignore_macs)} MACs")
+
+    def get_dynamic_macs(self):
+        return self.station_macs - self.static_macs - self._ignore_macs
+
+    def get_static_macs(self):
+        return self.static_macs.copy()
+
+    def get_dynamic_macs_with_ssid(self):
+        dynamic = []
+        for mac in self.get_dynamic_macs():
+            ssid = self._ssid_map.get(mac, "")
+            dynamic.append((mac, ssid))
+        return dynamic
 
     def _scan_networks(self):
         """Scan for WiFi networks and get BSSIDs."""
@@ -206,7 +241,7 @@ class WiFiSniffer:
 
                 if self.dashboard:
                     for mac in self.station_macs:
-                        if mac not in self.static_macs and mac not in self._reported_macs:
+                        if mac not in self.static_macs and mac not in self._reported_macs and not self.is_ignored(mac):
                             self._reported_macs.add(mac)
                             event = {
                                 "mac": mac,
@@ -242,22 +277,6 @@ class WiFiSniffer:
             except Exception as e:
                 print(f"[wifi] Loop error: {e}")
 
-    def get_dynamic_macs(self):
-        """Return MACs that are not static."""
-        return self.station_macs - self.static_macs
-
-    def get_static_macs(self):
-        """Return MACs identified as static."""
-        return self.static_macs.copy()
-
-    def get_dynamic_macs_with_ssid(self):
-        """Return dynamic MACs with their SSIDs."""
-        dynamic = []
-        for mac in self.get_dynamic_macs():
-            ssid = self._ssid_map.get(mac, "")
-            dynamic.append((mac, ssid))
-        return dynamic
-
     def start_calibration(self, duration_seconds=30):
         """Start MAC calibration process: duration_seconds + 30s wait + duration_seconds."""
         if self._calibration_start is not None:
@@ -282,5 +301,6 @@ class WiFiSniffer:
             "stations": len(self.station_macs),
             "static_macs": len(self.static_macs),
             "dynamic_macs": len(self.get_dynamic_macs()),
+            "ignored_macs": len(self._ignore_macs),
             "calibrating": self.is_calibrating(),
         }
