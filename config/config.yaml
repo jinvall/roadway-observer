@@ -11,6 +11,7 @@ model:
   model_dir: models
   confidence_threshold: 0.5
   max_detections: 50
+  inference_threshold_ms: 250
   backend: local
   cloud_provider: huggingface
   cloud_api_key: ''

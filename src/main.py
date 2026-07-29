@@ -48,6 +48,7 @@ class RoadwayObserver:
         self._frame_count = 0
         self._last_purge = time.time()
         self._last_inference_time = 0
+        self._stopping = False
 
         # Shared state between threads
         self._latest_frame = None
@@ -227,9 +228,13 @@ class RoadwayObserver:
             import traceback
             traceback.print_exc()
         finally:
-            self.stop()
+            if not self._stopping:
+                self.stop()
 
     def stop(self):
+        if self._stopping:
+            return
+        self._stopping = True
         print("[main] Shutting down...")
         self._running = False
         self.capture.stop()
@@ -239,12 +244,20 @@ class RoadwayObserver:
 
     def restart(self):
         print("[main] Initiating graceful restart...")
-        self.stop()
+        if self._stopping:
+            return
+        self._stopping = True
+        self._running = False
+        self.capture.stop()
+        self.sound.stop()
+        self.wifi.stop()
+        print("[main] Shutdown complete")
         import subprocess
-        import os
         import time
         time.sleep(1)  # Brief pause before restart
-        subprocess.Popen([sys.executable] + sys.argv)
+        script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "main.py")
+        print(f"[main] Starting new process: {sys.executable} {script_path}")
+        subprocess.Popen([sys.executable, script_path])
         print("[main] Restart complete, exiting...")
         sys.exit(0)
 
