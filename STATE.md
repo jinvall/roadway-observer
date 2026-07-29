@@ -31,7 +31,7 @@
 - WiFi sniffer enabled by default
 
 ## Known Issues
-- None currently - restart button fixed with background thread
+- None currently - restart button now performs graceful shutdown and restart
 
 ## Commands
 ```bash
