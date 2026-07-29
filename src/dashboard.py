@@ -123,29 +123,37 @@ class Dashboard:
             import subprocess
             from pathlib import Path
             sniffer = self.wifi_sniffer
+            print(f"[calibrate] Calibration request received")
             if not sniffer:
+                print(f"[calibrate] ERROR: WiFi sniffer not initialized")
                 return jsonify({
                     "status": "error",
                     "message": "WiFi sniffer not initialized",
                 }), 500
+            print(f"[calibrate] Sniffer enabled: {sniffer.enabled}, device: {sniffer.device}")
             if sniffer._calibration_running:
+                print(f"[calibrate] ERROR: Calibration already in progress")
                 return jsonify({
                     "status": "error",
                     "message": "Calibration already in progress",
                 }), 400
             sniffer._calibration_running = True
+            script_path = str(Path(__file__).resolve().parent.parent / "src" / "rf_double_sieve.py")
+            print(f"[calibrate] Running script: {script_path} with device: {sniffer.device}")
             try:
-                subprocess.Popen(
-                    ["python3", str(Path(__file__).resolve().parent.parent / "src" / "rf_double_sieve.py"), sniffer.device],
+                proc = subprocess.Popen(
+                    ["python3", script_path, sniffer.device],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                 )
+                print(f"[calibrate] Process started with PID: {proc.pid}")
                 return jsonify({
                     "status": "ok",
                     "message": "Calibration started (30s scan + 30s wait + 30s scan = ~1 min 40s)",
                     "calibrating": True,
                 })
             except Exception as e:
+                print(f"[calibrate] ERROR: {e}")
                 sniffer._calibration_running = False
                 return jsonify({
                     "status": "error",
@@ -251,6 +259,7 @@ class Dashboard:
                     "available": cfg["model"]["available"],
                     "confidence_threshold": cfg["model"]["confidence_threshold"],
                     "max_detections": cfg["model"]["max_detections"],
+                    "inference_threshold_ms": cfg["model"].get("inference_threshold_ms", 200),
                     "backend": cfg["model"].get("backend", "local"),
                     "cloud_provider": cfg["model"].get("cloud_provider", "huggingface"),
                     "cloud_model_id": cfg["model"].get("cloud_model_id", "microsoft/dit-base-beta"),
@@ -285,7 +294,8 @@ class Dashboard:
 
             def convert_value(key, val):
                 numeric_keys = [
-                    "history_window", "frame_skip", "max_detections", "confidence_threshold"
+                    "history_window", "frame_skip", "max_detections", "confidence_threshold",
+                    "inference_threshold_ms"
                 ]
                 if key == "enabled" and isinstance(val, str):
                     return val.lower() == "true"

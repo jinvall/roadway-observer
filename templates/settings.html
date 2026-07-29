@@ -355,6 +355,13 @@
   loadConfig().then(cfg => {
     populateForm(cfg);
     console.log('Settings loaded');
+  }).catch(err => {
+    console.error('Failed to load config:', err);
+    const status = document.getElementById('save-status');
+    if (status) {
+      status.className = 'save-status error';
+      status.textContent = 'Failed to load settings - server may be restarting';
+    }
   });
   </script>
 </body>
