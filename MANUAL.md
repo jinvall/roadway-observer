@@ -112,12 +112,14 @@ Edit `config/static_ignore.json` to manually add MACs that should not appear in 
 
 ## Inference Threshold
 
-When inference time exceeds `model.inference_threshold_ms` (default: 200ms), the detection buffer is purged to prevent memory buildup:
+When inference time exceeds `model.inference_threshold_ms` (default: 200ms), the system automatically drops frames to prevent buffer buildup and maintain stable performance:
 
 ```yaml
 model:
   inference_threshold_ms: 200
 ```
+
+This setting is configurable on the Settings page under "Detection Model".
 
 ## Troubleshooting
 

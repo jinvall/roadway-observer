@@ -9,6 +9,7 @@
 - API endpoint `/api/wifi/overlay` for toggling WiFi overlay
 - API endpoint `/api/wifi/calibrate` runs external calibration script
 - Broadcast MAC `FF:FF:FF:FF:FF:FF` added to default ignore list
+- Frame dropping when inference exceeds threshold to prevent buffer buildup
 
 ### Fixed
 
@@ -22,6 +23,7 @@
 - WiFi sniffer loads ignore list from `config/static_ignore.json`
 - Calibration now runs as external Python process with subprocess
 - WiFi badge shows "WiFi Overlay: On/Off" toggle button
+- Added `model.inference_threshold_ms` config option (default: 200ms)
 
 ## [1.1.3] - 2026-07-28
 

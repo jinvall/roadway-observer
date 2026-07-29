@@ -152,13 +152,15 @@ class RoadwayObserver:
     def _check_inference_threshold(self):
         threshold_ms = self.cfg["model"].get("inference_threshold_ms", 200)
         if self._last_inference_time * 1000 > threshold_ms:
-            print(f"[main] Inference {self._last_inference_time*1000:.0f}ms exceeds threshold {threshold_ms}ms, purging buffer")
-            self._latest_results = []
-            self.dashboard._detections_buffer = []
-            self._inference_fps = FPSCounter(window=30)
+            self._skip_frames = True
+            self._skip_counter = 0
+        else:
+            self._skip_frames = False
 
     def run(self):
         self._running = True
+        self._skip_frames = False
+        self._skip_counter = 0
         self.capture.start()
         self.sound.start()
         self.wifi.start()
@@ -185,6 +187,12 @@ class RoadwayObserver:
 
                 self._frame_count += 1
                 self._fps_counter.tick()
+
+                # Skip frames if inference is slow to prevent buffer buildup
+                if self._skip_frames:
+                    self._skip_counter += 1
+                    if self._skip_counter < 3:
+                        continue
 
                 # Store latest frame for inference thread
                 with self._frame_lock:
