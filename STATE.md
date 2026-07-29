@@ -31,8 +31,7 @@
 - WiFi sniffer enabled by default
 
 ## Known Issues
-- App may hang after config save if inference threshold is crossed
-- Restart button may not work correctly during shutdown
+- None currently - restart button fixed with background thread
 
 ## Commands
 ```bash
