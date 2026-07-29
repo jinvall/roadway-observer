@@ -41,6 +41,7 @@ class RoadwayObserver:
         self.wifi = WiFiSniffer()
         self.dashboard = Dashboard(db=self.db, wifi_sniffer=self.wifi)
         self.wifi.dashboard = self.dashboard
+        self.dashboard._observer = self
 
         self._running = False
         self._fps_counter = FPSCounter(window=30)
@@ -235,6 +236,17 @@ class RoadwayObserver:
         self.sound.stop()
         self.wifi.stop()
         print("[main] Shutdown complete")
+
+    def restart(self):
+        print("[main] Initiating graceful restart...")
+        self.stop()
+        import subprocess
+        import os
+        import time
+        time.sleep(1)  # Brief pause before restart
+        subprocess.Popen([sys.executable] + sys.argv)
+        print("[main] Restart complete, exiting...")
+        sys.exit(0)
 
 
 def main():

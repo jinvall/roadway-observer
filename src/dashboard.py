@@ -360,15 +360,17 @@ class Dashboard:
 
         @app.route("/api/restart", methods=["POST"])
         def api_restart():
-            """Restart the application."""
-            import os
-            import signal
-            import threading
-            def restart():
-                time.sleep(0.5)  # Let response send
-                os.kill(os.getpid(), signal.SIGTERM)
-            threading.Thread(target=restart, daemon=True).start()
-            return jsonify({"status": "ok", "message": "Restart initiated"})
+            """Restart the application gracefully."""
+            try:
+                if hasattr(self, '_observer') and self._observer:
+                    self._observer.restart()
+                else:
+                    import os
+                    import signal
+                    os.kill(os.getpid(), signal.SIGTERM)
+                return jsonify({"status": "ok", "message": "Restart initiated"})
+            except Exception as e:
+                return jsonify({"status": "error", "message": str(e)}), 500
 
         @app.route("/settings")
         def settings_page():
