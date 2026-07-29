@@ -102,6 +102,8 @@ class RoadwayObserver:
             else:
                 self._latest_annotated = frame.copy()
 
+            time.sleep(0.01)  # Prevent tight loop
+
     def _draw_annotations(self, frame, results):
         """Draw bounding boxes and labels on frame."""
         annotated = frame.copy()
@@ -157,14 +159,12 @@ class RoadwayObserver:
             return
         if self._last_inference_time * 1000 > threshold_ms:
             self._skip_frames = True
-            self._skip_counter = 0
         else:
             self._skip_frames = False
 
     def run(self):
         self._running = True
         self._skip_frames = False
-        self._skip_counter = 0
         self.capture.start()
         self.sound.start()
         self.wifi.start()
@@ -191,12 +191,6 @@ class RoadwayObserver:
 
                 self._frame_count += 1
                 self._fps_counter.tick()
-
-                # Skip frames if inference is slow to prevent buffer buildup
-                if self._skip_frames:
-                    self._skip_counter += 1
-                    if self._skip_counter < 3:
-                        continue
 
                 # Store latest frame for inference thread
                 with self._frame_lock:

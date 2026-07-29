@@ -11,7 +11,6 @@ model:
   model_dir: models
   confidence_threshold: 0.5
   max_detections: 50
-  inference_threshold_ms: 220
   backend: local
   cloud_provider: huggingface
   cloud_api_key: ''
@@ -20,13 +19,13 @@ detection:
   enabled_classes:
   - vehicle
   - pedestrian
-  frame_skip: 3
+  frame_skip: 5
   resize_width: 320
   resize_height: 320
 tracking:
   enabled: true
   iou_threshold: 0.15
-  max_disappeared: 30
+  max_disappeared: 4
   direction_window: 30
 database:
   path: data/roadway.db
