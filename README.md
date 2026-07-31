@@ -53,10 +53,41 @@ Set `wifi_sniffer.enabled: true` to enable WiFi MAC correlation for vehicle dete
 | Key | Default | Description |
 |---|---|---|
 | `wifi_sniffer.enabled` | `false` | Enable WiFi sniffer |
-| `wifi_sniffer.device` | `/dev/ttyUSB1` | USB sniffer device |
+| `wifi_sniffer.device` | `/dev/ttyUSB0` | USB sniffer device |
 | `wifi_sniffer.history_window` | `3600` | MAC history window in seconds |
 
 Use `config/static_ignore.json` to ignore specific MAC addresses.
+
+### BLE Device Correlation
+
+Set `ble_sniffer.enabled: true` to enable BLE device correlation. Detects BLE devices like phones, wearables, and IoT devices.
+
+| Key | Default | Description |
+|---|---|---|
+| `ble_sniffer.enabled` | `false` | Enable BLE sniffer |
+| `ble_sniffer.dwell_time` | `10` | Display dwell time in seconds |
+| `ble_sniffer.duty_cycle` | `10.0` | Scan interval in seconds |
+| `ble_sniffer.history_window` | `3600` | Device history window in seconds |
+
+Use `config/static_ignore.json` to ignore specific MAC addresses.
+
+### Sound Event Audio Source
+
+Sound events can use different audio sources. Configure `sound_events.source`:
+
+| Source | Description |
+|---|---|
+| `host_audio` | Direct microphone input via sounddevice |
+| `video_stream` | Extract audio from RTSP video stream (requires ffmpeg) |
+| `ip_stream` | Receive audio from HTTP stream (`ip_audio_url`) |
+
+Additional audio source options:
+
+| Key | Default | Description |
+|---|---|---|
+| `sound_events.source` | `host_audio` | Audio source type |
+| `sound_events.rtsp_url` | `""` | RTSP URL for video stream audio extraction |
+| `sound_events.ip_audio_url` | `""` | IP audio stream URL for `ip_stream` source |
 
 ## Architecture
 

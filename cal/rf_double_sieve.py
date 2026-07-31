@@ -4,7 +4,7 @@ Double Sieve: run two consecutive 30s MAC scans, cross-reference,
 and update config/static_ignore.json with MACs present in both.
 
 Usage:
-    python3 src/rf_double_sieve.py [/dev/ttyUSB1]
+    python3 cal/rf_double_sieve.py [/dev/ttyUSB0]
 
 Output:
     - Shows intersection (static/persistent MACs found in both scans)
@@ -26,8 +26,6 @@ from src.rf_mac_sieve import parse_src, mac_norm
 
 DEVICE = sys.argv[1] if len(sys.argv) > 1 else "/dev/ttyUSB0"
 SCAN_DURATION = 30  # seconds per scan
-BAUD_RATE = 115200  # ESP32 baud rate
-STABILIZE_DELAY = 1.0  # seconds to wait after opening
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 IGNORE_PATH = CONFIG_DIR / "static_ignore.json"
@@ -52,7 +50,6 @@ def run_sieve(device: str, duration: int, label: str) -> set:
 
     fd = os.open(device, os.O_RDONLY | os.O_NONBLOCK)
     print(f"[SIEVE {label}] Reading {device} for {duration}s...")
-    time.sleep(STABILIZE_DELAY)  # Wait for device to stabilize
     start = time.time()
     buf = b""
 

@@ -1,0 +1,22 @@
+okayi read the calibration .py files and it appears that you are not listening very well, or at least your predacessors didnt. i will explain this very simple flow once more. please do not overcomkplicate this as its simplicity may make you think it is weak. i will have to go and find the orrigionall working files again as well. DO NOT MAKE CODE CHANGES FOR CALIBRATION WITHOUT DISCUSSING WITH ME FIRST.
+
+i put my orrigionals in /cal
+
+there is user interaction required when calibration so either remove the prompting from the code so it saves without user input  OR  in the badge, add a window that displays the calibration in an interactive state so uses can y or n the calibration.
+
+Double Sieve: run two consecutive 30s MAC scans, cross-reference,
+and update config/static_ignore.json with MACs present in both.
+
+Usage:
+    python3 src/rf_double_sieve.py [/dev/ttyUSB1]
+
+Output:
+    - Shows intersection (static/persistent MACs found in both scans)
+    - Prompts before writing to config/static_ignore.json
+    - Appends to ignore list (preserves existing entries)
+
+Dependencies:
+    - rf_mac_sieve.py (imported for scan logic)
+
+
+i dont know why you insist on over complicating this as much as you do.

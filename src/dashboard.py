@@ -12,7 +12,7 @@ from .config import load_config
 class Dashboard:
     """Flask-based web dashboard for roadway observer."""
 
-    def __init__(self, db=None, wifi_sniffer=None):
+    def __init__(self, db=None, wifi_sniffer=None, ble_sniffer=None):
         cfg = load_config()
         self.host = cfg["dashboard"]["host"]
         self.port = cfg["dashboard"]["port"]
@@ -22,6 +22,7 @@ class Dashboard:
         self.debug = cfg["dashboard"]["debug"]
         self.db = db
         self.wifi_sniffer = wifi_sniffer
+        self.ble_sniffer = ble_sniffer
 
         self.app = Flask(
             __name__,
@@ -53,6 +54,7 @@ class Dashboard:
         self._detections_buffer = []
         self._sound_events_buffer = []
         self._wifi_events_buffer = []
+        self._ble_events_buffer = []
         self._buffer_lock = threading.Lock()
 
         print(f"[dashboard] UI at http://{self.host}:{self.port}")
@@ -94,6 +96,37 @@ class Dashboard:
                 )
             return jsonify(events)
 
+        @app.route("/api/ble_events")
+        def api_ble_events():
+            limit = request.args.get("limit", 50, type=int)
+            with self._buffer_lock:
+                events = (
+                    self._ble_events_buffer[-limit:]
+                    if hasattr(self, "_ble_events_buffer")
+                    else []
+                )
+            return jsonify(events)
+
+        @app.route("/api/ble_status")
+        def api_ble_status():
+            sniffer = self.ble_sniffer
+            if not sniffer:
+                return jsonify({
+                    "enabled": False,
+                    "running": False,
+                    "devices": 0,
+                    "dynamic_devices": 0,
+                })
+            running = sniffer.enabled and len(sniffer.discovered_macs) > 0
+            return jsonify({
+                "enabled": sniffer.enabled,
+                "running": running,
+                "devices": len(sniffer.discovered_macs),
+                "dynamic_devices": len(sniffer.get_dynamic_devices()),
+                "dwell_time": sniffer.dwell_time,
+                "duty_cycle": sniffer.duty_cycle,
+            })
+
         @app.route("/api/wifi_status")
         def api_wifi_status():
             sniffer = self.wifi_sniffer
@@ -106,6 +139,7 @@ class Dashboard:
                     "dynamic_macs": 0,
                     "calibrating": False,
                     "device": "/dev/ttyUSB1",
+                    "dwell_time": sniffer.dwell_time if hasattr(sniffer, 'dwell_time') else 10,
                 })
             running = sniffer.enabled and len(sniffer.station_macs) > 0
             return jsonify({
@@ -116,6 +150,7 @@ class Dashboard:
                 "dynamic_macs": len(sniffer.get_dynamic_macs()),
                 "calibrating": sniffer.is_calibrating(),
                 "device": sniffer.device,
+                "dwell_time": sniffer.dwell_time,
             })
 
         @app.route("/api/wifi/calibrate", methods=["POST"])
@@ -176,7 +211,7 @@ class Dashboard:
 
         @app.route("/api/capture", methods=["POST"])
         def api_capture():
-            """Capture current frame with WiFi overlay."""
+            """Capture current frame with WiFi and BLE overlay."""
             import base64
             import os
             from datetime import datetime
@@ -187,7 +222,7 @@ class Dashboard:
                 frame = self._frame.copy()
 
             wifi_data = self._get_wifi_info()
-            dynamic_macs = wifi_data if wifi_data else []
+            ble_data = self._get_ble_info()
             
             y_offset = 20
             
@@ -199,16 +234,31 @@ class Dashboard:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
             y_offset += 25
             
-            if dynamic_macs:
-                cv2.putText(frame, "Dynamic MACs:", (10, y_offset),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-                y_offset += 30
-                for mac, ssid in dynamic_macs[:5]:
+            # WiFi devices in cyan
+            if wifi_data:
+                cv2.putText(frame, "WiFi Devices:", (10, y_offset),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+                y_offset += 20
+                for mac, ssid, _ in wifi_data[:3]:
                     ssid_display = ssid if ssid and ssid != "(hidden)" else "hidden"
-                    label = f"{mac}  {ssid_display}"
+                    label = f"{mac} {ssid_display}"
                     cv2.putText(frame, label, (10, y_offset),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 255), 2)
-                    y_offset += 25
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 255), 1)
+                    y_offset += 18
+            
+            # BLE devices in green
+            if ble_data:
+                if wifi_data:
+                    y_offset += 5
+                cv2.putText(frame, "BLE Devices:", (10, y_offset),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                y_offset += 20
+                for mac, name, _ in ble_data[:3]:
+                    name_display = name if name else "Anonymous"
+                    label = f"{mac} {name_display}"
+                    cv2.putText(frame, label, (10, y_offset),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1)
+                    y_offset += 18
 
             ret, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, self.mjpeg_quality])
             if not ret:
@@ -243,7 +293,8 @@ class Dashboard:
                 "status": "ok",
                 "image": base64.b64encode(jpeg.tobytes()).decode("utf-8"),
                 "saved_path": saved_path,
-                "dynamic_macs": dynamic_macs,
+                "wifi_devices": [{"mac": mac, "ssid": ssid} for mac, ssid, _ in wifi_data],
+                "ble_devices": [{"mac": mac, "name": name} for mac, name, _ in ble_data],
             }
             return jsonify(result)
 
@@ -267,9 +318,12 @@ class Dashboard:
                 "detection": {"enabled_classes": cfg["detection"]["enabled_classes"],
                               "frame_skip": cfg["detection"]["frame_skip"]},
                 "tracking": {"enabled": cfg["tracking"]["enabled"],
-                             "iou_threshold": cfg["tracking"]["iou_threshold"],
-                             "max_disappeared": cfg["tracking"]["max_disappeared"]},
+                              "iou_threshold": cfg["tracking"]["iou_threshold"],
+                              "max_disappeared": cfg["tracking"]["max_disappeared"]},
                 "sound_events": {"enabled": cfg["sound_events"]["enabled"],
+                                 "source": cfg["sound_events"].get("source", "host_audio"),
+                                 "rtsp_url": cfg["sound_events"].get("rtsp_url", ""),
+                                 "ip_audio_url": cfg["sound_events"].get("ip_audio_url", ""),
                                  "siren_threshold": cfg["sound_events"]["siren_threshold"],
                                  "horn_threshold": cfg["sound_events"]["horn_threshold"],
                                  "bark_threshold": cfg["sound_events"]["bark_threshold"]},
@@ -280,8 +334,33 @@ class Dashboard:
                 "wifi_sniffer": {"enabled": cfg["wifi_sniffer"]["enabled"],
                                  "device": cfg["wifi_sniffer"]["device"],
                                  "history_window": cfg["wifi_sniffer"]["history_window"]},
+                "ble_sniffer": {"enabled": cfg.get("ble_sniffer", {}).get("enabled", False),
+                                "dwell_time": cfg.get("ble_sniffer", {}).get("dwell_time", 10),
+                                "duty_cycle": cfg.get("ble_sniffer", {}).get("duty_cycle", 10.0)},
             }
             return jsonify(safe)
+
+        @app.route("/api/ble/calibrate", methods=["POST"])
+        def api_ble_calibrate():
+            sniffer = self.ble_sniffer
+            print(f"[ble-calibrate] Calibration request received")
+            if not sniffer:
+                print(f"[ble-calibrate] ERROR: BLE sniffer not initialized")
+                return jsonify({
+                    "status": "error",
+                    "message": "BLE sniffer not initialized",
+                }), 500
+            try:
+                sniffer.reload_ignore_list()
+                return jsonify({
+                    "status": "ok",
+                    "message": "BLE ignore list reloaded",
+                })
+            except Exception as e:
+                return jsonify({
+                    "status": "error",
+                    "message": str(e),
+                }), 500
 
         @app.route("/api/config", methods=["POST"])
         def api_config_set():
@@ -330,6 +409,7 @@ class Dashboard:
             restart_keys = [
                 "rtsp.url", "model.active", "model.available", "model.backend",
                 "wifi_sniffer.enabled", "wifi_sniffer.device",
+                "ble_sniffer.enabled", "sound_events.source",
             ]
             for k in restart_keys:
                 parts = k.split(".")
@@ -437,9 +517,27 @@ class Dashboard:
             if mac and mac not in seen_macs and mac not in static_macs and mac not in ignore_macs:
                 seen_macs.add(mac)
                 ssid = event.get("ssid", "")
-                dynamic_macs.append((mac, ssid))
+                dynamic_macs.append((mac, ssid, "wifi"))
 
         return dynamic_macs
+
+    def _get_ble_info(self):
+        """Get BLE info from sniffer buffer - returns list of (mac, name) tuples for dynamic BLE devices."""
+        if not self._ble_sniffer or not self.ble_sniffer.enabled:
+            return []
+
+        ignore_macs = set(self.ble_sniffer._ignore_macs)
+        seen_macs = set()
+        dynamic_devices = []
+
+        for event in self._ble_events_buffer[-50:]:
+            mac = event.get("mac", "").lower()
+            name = event.get("name", "") or event.get("ssid", "") or "Anonymous"
+            if mac and mac not in seen_macs and mac not in ignore_macs:
+                seen_macs.add(mac)
+                dynamic_devices.append((mac, name, "ble"))
+
+        return dynamic_devices
 
     def _refresh_stats_from_db(self):
         """Pull fresh stats from database."""
@@ -531,6 +629,13 @@ class Dashboard:
             self._wifi_events_buffer.append(event)
             if len(self._wifi_events_buffer) > 500:
                 self._wifi_events_buffer = self._wifi_events_buffer[-250:]
+
+    def add_ble_event(self, event):
+        """Add BLE event to the rolling buffer."""
+        with self._buffer_lock:
+            self._ble_events_buffer.append(event)
+            if len(self._ble_events_buffer) > 500:
+                self._ble_events_buffer = self._ble_events_buffer[-250:]
 
     def run(self, threaded=True):
         """Start the Flask server."""

@@ -37,11 +37,30 @@ Open http://localhost:8080 (or http://10.0.0.147:8080 from LAN)
 | `/api/stats` | JSON stats |
 | `/api/detections` | Recent detections |
 | `/api/sound_events` | Recent sound events |
+| `/api/wifi_events` | WiFi device events |
+| `/api/ble_events` | BLE device events |
+| `/api/wifi_status` | WiFi sniffer status |
+| `/api/ble_status` | BLE sniffer status |
 | `/api/health` | Health check with full stats |
 
 ## Configuration
 
 Edit `config/config.yaml`:
+
+### Audio Source Configuration
+
+Sound events can use different audio sources:
+
+```yaml
+sound_events:
+  source: host_audio  # Options: host_audio, video_stream, ip_stream
+  rtsp_url: ""  # RTSP URL for video_stream source
+  ip_audio_url: ""  # IP audio stream URL for ip_stream source
+```
+
+- `host_audio`: Direct microphone input via sounddevice (default)
+- `video_stream`: Extract audio from RTSP video stream (requires ffmpeg)
+- `ip_stream`: Receive audio from HTTP stream via `ip_audio_url`
 
 ### Changing the model
 
@@ -109,6 +128,18 @@ Edit `config/static_ignore.json` to manually add MACs that should not appear in 
   ]
 }
 ```
+
+### BLE Device Correlation
+
+Enable BLE device correlation by setting `ble_sniffer.enabled: true` in `config/config.yaml`.
+
+| Setting | Default | Description |
+|---|---|---|
+| `ble_sniffer.enabled` | `false` | Enable BLE sniffer |
+| `ble_sniffer.dwell_time` | `10` | Display dwell time in seconds |
+| `ble_sniffer.duty_cycle` | `10.0` | Scan interval in seconds |
+
+BLE devices (phones, wearables, IoT) will appear in the dashboard badge showing the count of discovered devices.
 
 ## Inference Threshold
 

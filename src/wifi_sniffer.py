@@ -44,10 +44,14 @@ def try_parse_mac(data):
 class WiFiSniffer:
     """Captures WiFi MAC addresses from USB sniffer device."""
 
+    BAUD_RATE = 115200
+
     def __init__(self, dashboard=None):
         cfg = load_config()
         self.enabled = cfg.get("wifi_sniffer", {}).get("enabled", False)
         self.device = cfg.get("wifi_sniffer", {}).get("device", "/dev/ttyUSB0")
+        self.baud_rate = 115200
+        self.dwell_time = cfg.get("wifi_sniffer", {}).get("dwell_time", 10)
         self.bssid_list = set()
         self.station_macs = set()
         self.static_macs = set()
@@ -62,6 +66,7 @@ class WiFiSniffer:
         self._running = False
         self._thread = None
         self._reported_macs = set()
+        self._display_timestamps = {}
         self._overlay_enabled = True
         self._calibration_running = False
         self.dashboard = dashboard
@@ -107,7 +112,14 @@ class WiFiSniffer:
             print(f"[wifi] Scan error: {e}")
 
     def _parse_sniffer_output(self):
-        """Parse WiFi sniffer JSON output for MAC addresses."""
+        """Parse WiFi sniffer JSONL output for MAC addresses.
+        
+        ESP32 in promiscuous mode outputs JSONL lines with raw packet data.
+        Garbage outside of {} delimiters is ignored.
+        """
+        import base64
+        import struct
+        
         if not os.path.exists(self.device):
             return
 
@@ -115,86 +127,122 @@ class WiFiSniffer:
             import serial
             ser = None
             try:
-                ser = serial.Serial(self.device, 9600, timeout=0.5)
-                lines_read = 0
-                while lines_read < 10:
+                ser = serial.Serial(self.device, self.baud_rate, timeout=0.1)
+            except Exception as e:
+                if ser:
+                    ser.close()
+                raise
+
+            lines_read = 0
+            try:
+                while lines_read < 100:
                     line = ser.readline().decode('utf-8', errors='ignore').strip()
                     if not line:
                         break
                     lines_read += 1
+                    
                     if not line.startswith('{'):
                         continue
+                    
                     try:
                         data = json.loads(line)
-                        mac = try_parse_mac(data)
-                        if mac:
-                            if mac not in self.station_macs:
-                                self.station_macs.add(mac)
-                            ssid = data.get("ssid", "")
-                            if mac not in self._ssid_map:
-                                self._ssid_map[mac] = ssid
+                        if data.get("type") != "wifi":
+                            continue
+                            
+                        frame_b64 = str(data.get("frame_b64") or "")
+                        bssid = data.get("bssid", "")
+                        ssid = data.get("ssid", "")
+                        
+                        if not bssid or not is_valid_mac(bssid.lower()):
+                            if frame_b64:
+                                try:
+                                    raw = base64.b64decode(frame_b64)
+                                    if len(raw) >= 16:
+                                        src = ":".join(f"{x:02X}" for x in raw[10:16])
+                                        if not is_valid_mac(src.lower()):
+                                            continue
+                                        bssid = src
+                                except Exception:
+                                    continue
+                        
+                        mac = bssid.lower()
+                        if not is_valid_mac(mac):
+                            continue
+                        
+                        if mac not in self.station_macs:
+                            self.station_macs.add(mac)
+                        if mac not in self._ssid_map:
+                            self._ssid_map[mac] = ssid if ssid else ""
                     except json.JSONDecodeError:
-                        pass
+                        continue
             finally:
                 if ser:
                     ser.close()
         except ImportError:
-            try:
-                import io
-                with open(self.device, 'rb') as f:
-                    lines_read = 0
-                    buffer = b''
-                    while lines_read < 10:
-                        readable, _, _ = select.select([f], [], [], 0.05)
-                        if not readable:
-                            break
-                        chunk = f.read(1024)
-                        if not chunk:
-                            continue
-                        buffer += chunk
-                        
-                        # Find complete JSON objects in buffer
-                        while lines_read < 10:
-                            start = buffer.find(b'{')
-                            if start == -1:
-                                buffer = buffer[-100:] if len(buffer) > 100 else buffer
-                                break
-                            
-                            # Find matching closing brace
-                            depth = 0
-                            end = -1
-                            for i, b in enumerate(buffer[start:], start):
-                                if b == ord('{'):
-                                    depth += 1
-                                elif b == ord('}'):
-                                    depth -= 1
-                                    if depth == 0:
-                                        end = i + 1
-                                        break
-                            
-                            if end == -1:
-                                buffer = buffer[start:]
-                                break
-                            
-                            try:
-                                line = buffer[start:end].decode('utf-8', errors='ignore').strip()
-                                data = json.loads(line)
-                                mac = try_parse_mac(data)
-                                if mac:
-                                    if mac not in self.station_macs:
-                                        self.station_macs.add(mac)
-                                    ssid = data.get("ssid", "")
-                                    if mac not in self._ssid_map:
-                                        self._ssid_map[mac] = ssid
-                            except json.JSONDecodeError:
-                                pass
-                            
-                            lines_read += 1
-                            buffer = buffer[end:] if end < len(buffer) else b''
-            except Exception as e:
-                print(f"[wifi] Read error: {e}")
+            self._parse_sniffer_file()
         except Exception as e:
             print(f"[wifi] Serial error: {e}")
+
+    def _parse_sniffer_file(self):
+        """Parse WiFi sniffer output from device file (fallback mode)."""
+        if not os.path.exists(self.device):
+            return
+            
+        import select
+        
+        try:
+            fd = os.open(self.device, os.O_RDONLY | os.O_NONBLOCK)
+            buf = b""
+            lines_read = 0
+            
+            try:
+                while lines_read < 100:
+                    r, _, _ = select.select([fd], [], [], 0.05)
+                    if not r:
+                        break
+                    
+                    chunk = os.read(fd, 8192)
+                    if not chunk:
+                        continue
+                    
+                    buf += chunk
+                    
+                    while b'\n' in buf:
+                        ln, buf = buf.split(b'\n', 1)
+                        lines_read += 1
+                        
+                        s = ln.decode('utf-8', errors='ignore').strip()
+                        if not s.startswith('{'):
+                            continue
+                            
+                        try:
+                            data = json.loads(s)
+                            if data.get("type") != "wifi":
+                                continue
+                            
+                            bssid = data.get("bssid", "")
+                            ssid = data.get("ssid", "")
+                            
+                            if not bssid or not is_valid_mac(bssid.lower()):
+                                frame_b64 = str(data.get("frame_b64") or "")
+                                if frame_b64:
+                                    import base64
+                                    raw = base64.b64decode(frame_b64)
+                                    if len(raw) >= 16:
+                                        bssid = ":".join(f"{x:02X}" for x in raw[10:16])
+                            
+                            mac = bssid.lower()
+                            if is_valid_mac(mac):
+                                if mac not in self.station_macs:
+                                    self.station_macs.add(mac)
+                                if mac not in self._ssid_map:
+                                    self._ssid_map[mac] = ssid if ssid else ""
+                        except json.JSONDecodeError:
+                            continue
+            finally:
+                os.close(fd)
+        except Exception as e:
+            print(f"[wifi] File read error: {e}")
 
     def _detect_static_macs(self):
         """Detect static MACs from history."""
@@ -241,16 +289,25 @@ class WiFiSniffer:
 
                 if self.dashboard:
                     for mac in self.station_macs:
-                        if mac not in self.static_macs and mac not in self._reported_macs and not self.is_ignored(mac):
-                            self._reported_macs.add(mac)
-                            event = {
-                                "mac": mac,
-                                "type": "station",
-                                "is_static": False,
-                                "ssid": self._ssid_map.get(mac, ""),
-                                "timestamp": now,
-                            }
-                            self.dashboard.add_wifi_event(event)
+                        if mac not in self.static_macs and not self.is_ignored(mac):
+                            if mac not in self._display_timestamps:
+                                self._display_timestamps[mac] = now
+                            if mac not in self._reported_macs:
+                                self._reported_macs.add(mac)
+                                event = {
+                                    "mac": mac,
+                                    "type": "station",
+                                    "is_static": False,
+                                    "ssid": self._ssid_map.get(mac, ""),
+                                    "timestamp": now,
+                                }
+                                self.dashboard.add_wifi_event(event)
+                    
+                    for mac in list(self._display_timestamps.keys()):
+                        if now - self._display_timestamps[mac] >= self.dwell_time:
+                            if mac in self._reported_macs:
+                                self._reported_macs.discard(mac)
+                            del self._display_timestamps[mac]
 
                 if self._calibration_start is not None:
                     elapsed = time.time() - self._calibration_start

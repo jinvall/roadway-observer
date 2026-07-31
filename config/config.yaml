@@ -36,6 +36,9 @@ sound_events:
   enabled: false
   sample_rate: 16000
   chunk_duration: 1.0
+  source: video_stream
+  rtsp_url: rtsp://Bouncy:BallZach@10.0.0.153/live
+  ip_audio_url: ''
   siren_threshold: 0.6
   horn_threshold: 0.5
   bark_threshold: 0.4
@@ -54,8 +57,14 @@ logging:
   backup_count: 3
 wifi_sniffer:
   enabled: true
-  device: /dev/ttyUSB1
+  device: /dev/ttyUSB0
   history_window: 3600
+  dwell_time: 10
+ble_sniffer:
+  enabled: true
+  history_window: 3600
+  dwell_time: 10
+  duty_cycle: 10
 photos:
   enabled: true
   path: data/photos

@@ -4,8 +4,6 @@ import json, os, select, signal, sys, time
 from collections import defaultdict
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-
 RUNNING = True
 def _sig(*_):
     global RUNNING
@@ -14,7 +12,7 @@ signal.signal(signal.SIGINT, _sig)
 signal.signal(signal.SIGTERM, _sig)
 
 DEVICE = sys.argv[1] if len(sys.argv) > 1 else "/dev/ttyUSB0"
-DURATION = int(sys.argv[2]) if len(sys.argv) > 2 else 90
+DURATION = int(sys.argv[2]) if len(sys.argv) > 2 else 180
 STABILIZE_DELAY = 1.0  # seconds to wait after opening device
 
 def mac_norm(m):
@@ -121,6 +119,7 @@ print(f"MIDDLE count: {sum(1 for r in results if r[0]=='MIDDLE')}")
 print(f"TRANSIENT count: {sum(1 for r in results if r[0]=='TRANSIENT')}")
 
 # Save
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 out = PROJECT_ROOT / "data" / "rf_mac_sieve.ndjson"
 out.parent.mkdir(parents=True, exist_ok=True)
 with out.open("w", encoding="utf-8") as f:

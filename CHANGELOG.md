@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.2.0] - 2026-07-31
+
+### Added
+
+- BLE (Bluetooth Low Energy) device sniffer using bleak library
+- BLE device correlation for tracking phones, wearables, and IoT devices
+- API endpoint `/api/ble_events` for BLE device events
+- API endpoint `/api/ble_status` for BLE sniffer status
+- API endpoint `/api/ble/calibrate` to reload BLE ignore list
+- BLE device count and names display on dashboard badge
+- `ble_sniffer` configuration section with enable, dwell_time, duty_cycle settings
+- Configurable audio sources for sound events:
+  - `host_audio`: Direct microphone input via sounddevice
+  - `video_stream`: Extract audio from RTSP video stream (requires ffmpeg)
+  - `ip_stream`: Receive audio from HTTP stream
+- `sound_events.source`, `sound_events.rtsp_url`, `sound_events.ip_audio_url` configuration options
+- WiFi and BLE device overlay on photo captures
+  - WiFi devices displayed in cyan with SSID
+  - BLE devices displayed in green with device name
+  - Both filtered by shared ignore list (config/static_ignore.json)
+- Added `pyserial>=3.5` dependency for WiFi sniffer serial communication
+- Added `bleak>=0.22.0` dependency for BLE scanning
+
+### Fixed
+
+- WiFi sniffer device path corrected from `/dev/ttyUSB1` to `/dev/ttyUSB0` (ESP32 enumeration after reset)
+- WiFi sniffer baud rate corrected from 9600 to 115200 (ESP32 default)
+- Added 1-second stabilization delay after opening USB serial device
+- Improved JSONL parsing to properly handle ESP32 promiscuous mode output
+- Fixed hardcoded output path in calibration scripts to use project-relative paths
+- BLE sniffer imports `load_ignore_list` from correct module (wifi_sniffer)
+
 ## [1.1.4] - 2026-07-28
 
 ### Added

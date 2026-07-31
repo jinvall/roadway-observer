@@ -14,6 +14,7 @@ from src.config import PROJECT_ROOT, load_config
 from src.dashboard import Dashboard
 from src.database import RoadwayDB
 from src.detector import ObjectDetector
+from src.ble_sniffer import BleSniffer
 from src.sound_events import SoundDetector
 from src.tracker import ObjectTracker
 from src.utils import FPSCounter, setup_logging
@@ -39,8 +40,10 @@ class RoadwayObserver:
         self.tracker = ObjectTracker()
         self.sound = SoundDetector(db=self.db)
         self.wifi = WiFiSniffer()
-        self.dashboard = Dashboard(db=self.db, wifi_sniffer=self.wifi)
+        self.ble = BleSniffer()
+        self.dashboard = Dashboard(db=self.db, wifi_sniffer=self.wifi, ble_sniffer=self.ble)
         self.wifi.dashboard = self.dashboard
+        self.ble.dashboard = self.dashboard
         self.dashboard._observer = self
 
         self._running = False
@@ -170,6 +173,7 @@ class RoadwayObserver:
         self.capture.start()
         self.sound.start()
         self.wifi.start()
+        self.ble.start()
 
         # Start inference thread
         inference_thread = threading.Thread(
@@ -240,6 +244,7 @@ class RoadwayObserver:
         self.capture.stop()
         self.sound.stop()
         self.wifi.stop()
+        self.ble.stop()
         print("[main] Shutdown complete")
 
     def restart(self):
@@ -251,6 +256,7 @@ class RoadwayObserver:
         self.capture.stop()
         self.sound.stop()
         self.wifi.stop()
+        self.ble.stop()
         print("[main] Shutdown complete")
         import subprocess
         import time

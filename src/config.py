@@ -45,6 +45,9 @@ DEFAULTS = {
         "enabled": True,
         "sample_rate": 16000,
         "chunk_duration": 1.0,
+        "source": "host_audio",
+        "rtsp_url": "",
+        "ip_audio_url": "",
         "siren_threshold": 0.6,
         "horn_threshold": 0.5,
         "bark_threshold": 0.4,
@@ -66,8 +69,15 @@ DEFAULTS = {
     },
     "wifi_sniffer": {
         "enabled": False,
-        "device": "/dev/ttyUSB1",
+        "device": "/dev/ttyUSB0",
         "history_window": 3600,
+        "dwell_time": 10,
+    },
+    "ble_sniffer": {
+        "enabled": False,
+        "history_window": 3600,
+        "dwell_time": 10,
+        "duty_cycle": 10.0,
     },
     "photos": {
         "enabled": True,

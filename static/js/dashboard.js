@@ -7,7 +7,9 @@ const state = {
   lastDetections: [],
   lastSound: [],
   wifiInfo: [],
+  bleInfo: [],
   wifiOverlay: true,
+  dwellTime: 10,
 };
 
 function $(id) { return document.getElementById(id); }
@@ -160,7 +162,11 @@ function updateWifiList(events) {
     return;
   }
 
-  const dynamicEvents = events.filter(e => !e.is_static);
+  const now = Date.now() / 1000;
+  const dwellSeconds = state.dwellTime || 10;
+  const cutoffTime = now - dwellSeconds;
+
+  const dynamicEvents = events.filter(e => !e.is_static && e.timestamp >= cutoffTime);
   if (dynamicEvents.length === 0) {
     list.innerHTML = '<div class="detection-empty">No dynamic WiFi devices</div>';
     return;
@@ -173,6 +179,62 @@ function updateWifiList(events) {
     return `<div class="wifi-item dynamic">
       <span class="wifi-mac">${mac}</span>
       <span class="wifi-ssid">${ssid}</span>
+      <span class="det-time">${time}</span>
+    </div>`;
+  }).join('');
+}
+
+function updateBleBadge(bleStatus) {
+  const badge = $('ble-badge');
+  const status = $('ble-status');
+  if (!bleStatus || !bleStatus.enabled) {
+    badge.textContent = 'BLE: Off';
+    badge.className = 'ble-badge';
+    if (status) status.textContent = 'Disabled';
+    return;
+  }
+  if (bleStatus.calibrating) {
+    badge.textContent = 'BLE: Calibrating';
+    badge.className = 'ble-badge';
+    if (status) status.textContent = 'Calibrating';
+    return;
+  }
+  const dynamicCount = bleStatus.dynamic_devices || 0;
+  if (dynamicCount > 0) {
+    badge.textContent = 'BLE: ' + dynamicCount;
+    badge.className = 'ble-badge active';
+    if (status) status.textContent = 'Active';
+  } else {
+    badge.textContent = 'BLE: None';
+    badge.className = 'ble-badge';
+    if (status) status.textContent = 'Offline';
+  }
+}
+
+function updateBleList(events) {
+  const list = $('ble-list');
+  if (!events || events.length === 0) {
+    list.innerHTML = '<div class="detection-empty">No BLE devices detected</div>';
+    return;
+  }
+
+  const now = Date.now() / 1000;
+  const dwellSeconds = state.dwellTime || 10;
+  const cutoffTime = now - dwellSeconds;
+
+  const dynamicEvents = events.filter(e => !e.is_static && e.timestamp >= cutoffTime);
+  if (dynamicEvents.length === 0) {
+    list.innerHTML = '<div class="detection-empty">No BLE devices in range</div>';
+    return;
+  }
+
+  list.innerHTML = dynamicEvents.slice(-30).reverse().map(e => {
+    const mac = e.mac || 'unknown';
+    const name = e.name || (e.tx_power > 0 ? 'Anonymous' : 'Unknown') || 'Unknown';
+    const time = formatTime(e.timestamp);
+    return `<div class="ble-item dynamic">
+      <span class="ble-mac">${mac}</span>
+      <span class="ble-name">${name}</span>
       <span class="det-time">${time}</span>
     </div>`;
   }).join('');
@@ -227,6 +289,7 @@ async function fetchWifiStatus() {
     if (!resp.ok) return;
     const data = await resp.json();
     updateWifiBadge(data);
+    state.dwellTime = data.dwellTime || 10;
     const status = $('wifi-status');
     if (status) {
       if (data.calibrating) {
@@ -238,6 +301,51 @@ async function fetchWifiStatus() {
       }
     }
   } catch (e) {
+  }
+}
+
+async function fetchBleEvents() {
+  try {
+    const resp = await fetch('/api/ble_events?limit=50');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    updateBleList(data);
+  } catch (e) {
+  }
+}
+
+async function fetchBleStatus() {
+  try {
+    const resp = await fetch('/api/ble_status');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    updateBleBadge(data);
+    state.dwellTime = data.dwellTime || 10;
+  } catch (e) {
+  }
+}
+
+async function calibrateBleMacs() {
+  const btn = $('ble-calibrate-btn');
+  const status = $('ble-calibrate-status');
+  btn.disabled = true;
+  btn.textContent = 'Calibrating...';
+  status.textContent = 'Running BLE calibration...';
+
+  try {
+    const resp = await fetch('/api/ble/calibrate', { method: 'POST' });
+    if (!resp.ok) throw new Error('Calibration failed');
+    const data = await resp.json();
+    status.textContent = data.message;
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = 'Calibrate MACs';
+      status.textContent = '';
+    }, 5000);
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = 'Calibrate MACs';
   }
 }
 
@@ -314,6 +422,8 @@ function poll() {
   fetchSoundEvents();
   fetchWifiEvents();
   fetchWifiStatus();
+  fetchBleEvents();
+  fetchBleStatus();
 }
 
 /* SRP Theme Integration */
@@ -386,6 +496,13 @@ function setupWifiOverlayToggle() {
   }
 }
 
+function setupBleCalibrateButton() {
+  const calibrateBtn = $('ble-calibrate-btn');
+  if (calibrateBtn) {
+    calibrateBtn.addEventListener('click', calibrateBleMacs);
+  }
+}
+
 /* SRP Theme global */
 window.SRPTheme = {
   initTheme,
@@ -405,6 +522,7 @@ if (document.readyState === 'loading') {
     setupCaptureButton();
     setupCalibrateButton();
     setupWifiOverlayToggle();
+    setupBleCalibrateButton();
     console.log('[dashboard.js] Real-time monitoring started');
   });
 } else {
@@ -413,5 +531,6 @@ if (document.readyState === 'loading') {
   setupCaptureButton();
   setupCalibrateButton();
   setupWifiOverlayToggle();
+  setupBleCalibrateButton();
   console.log('[dashboard.js] Real-time monitoring started');
 }

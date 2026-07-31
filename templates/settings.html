@@ -119,7 +119,7 @@
         </div>
       </div>
 
-      <!-- Tracking -->
+<!-- Tracking -->
       <div class="settings-section">
         <h2>Tracking</h2>
         <div class="form-group">
@@ -135,9 +135,55 @@
         </div>
       </div>
 
+      <!-- BLE Sniffer -->
+      <div class="settings-section">
+        <h2>BLE Device Correlation</h2>
+        <div class="form-group">
+          <label for="ble-enabled">Enable BLE Sniffer</label>
+          <select id="ble-enabled" name="ble_sniffer.enabled">
+            <option value="false">Disabled</option>
+            <option value="true">Enabled</option>
+          </select>
+          <div class="hint">Requires restart</div>
+        </div>
+        <div class="form-group">
+          <label for="ble-dwell">Dwell Time (seconds)</label>
+          <input type="number" id="ble-dwell" name="ble_sniffer.dwell_time"
+                 data-section="ble_sniffer" data-key="dwell_time" min="5" max="60" step="5">
+          <div class="hint">Display duration for each device</div>
+        </div>
+        <div class="form-group">
+          <label for="ble-cycle">Scan Interval (seconds)</label>
+          <input type="number" id="ble-cycle" name="ble_sniffer.duty_cycle"
+                 data-section="ble_sniffer" data-key="duty_cycle" min="5" max="60" step="5">
+          <div class="hint">How often to scan for BLE devices</div>
+        </div>
+      </div>
+
       <!-- Sound -->
       <div class="settings-section">
         <h2>Sound Detection</h2>
+        <div class="form-group">
+          <label for="sound-source">Audio Source</label>
+          <select id="sound-source" name="sound_events.source">
+            <option value="host_audio">Host Audio (Microphone)</option>
+            <option value="video_stream">Video Stream (RTSP)</option>
+            <option value="ip_stream">IP Audio Stream</option>
+          </select>
+          <div class="hint">Source for sound event detection</div>
+        </div>
+        <div class="form-group">
+          <label for="sound-rtsp">RTSP URL (for video audio)</label>
+          <input type="text" id="sound-rtsp" name="sound_events.rtsp_url"
+                 data-section="sound_events" data-key="rtsp_url" placeholder="rtsp://...">
+          <div class="hint">RTSP URL to extract audio from (for video_stream source)</div>
+        </div>
+        <div class="form-group">
+          <label for="sound-ip">IP Audio URL (for ip_stream)</label>
+          <input type="text" id="sound-ip" name="sound_events.ip_audio_url"
+                 data-section="sound_events" data-key="ip_audio_url" placeholder="http://...">
+          <div class="hint">HTTP audio stream URL (for ip_stream source)</div>
+        </div>
         <div class="form-group">
           <label for="sound-siren">Siren Threshold</label>
           <input type="number" id="sound-siren" name="sound_events.siren_threshold"
@@ -182,7 +228,7 @@
 
   <script>
   const ALL_CLASSES = ['vehicle', 'pedestrian', 'animal', 'cyclist'];
-  const RESTART_KEYS = ['rtsp.url', 'model.active', 'model.available', 'model.backend', 'wifi_sniffer.enabled', 'wifi_sniffer.device'];
+  const RESTART_KEYS = ['rtsp.url', 'model.active', 'model.available', 'model.backend', 'wifi_sniffer.enabled', 'wifi_sniffer.device', 'ble_sniffer.enabled', 'sound_events.source'];
 
   async function loadConfig() {
     const resp = await fetch('/api/config');
@@ -219,6 +265,16 @@
       wifiEnabledSelect.value = String(cfg.wifi_sniffer.enabled);
     }
 
+    const bleEnabledSelect = document.getElementById('ble-enabled');
+    if (bleEnabledSelect && cfg.ble_sniffer?.enabled !== undefined) {
+      bleEnabledSelect.value = String(cfg.ble_sniffer.enabled);
+    }
+
+    const soundSourceSelect = document.getElementById('sound-source');
+    if (soundSourceSelect && cfg.sound_events?.source) {
+      soundSourceSelect.value = cfg.sound_events.source;
+    }
+
     const container = document.getElementById('detection-classes');
     const enabled = cfg.detection?.enabled_classes || [];
     container.innerHTML = ALL_CLASSES.map(c =>
@@ -246,7 +302,9 @@
       'model-active': ['model', 'active'],
       'model-backend': ['model', 'backend'],
       'model-cloud-provider': ['model', 'cloud_provider'],
-      'wifi-enabled': ['wifi_sniffer', 'enabled']
+      'wifi-enabled': ['wifi_sniffer', 'enabled'],
+      'ble-enabled': ['ble_sniffer', 'enabled'],
+      'sound-source': ['sound_events', 'source']
     };
     
     Object.keys(selectMappings).forEach(id => {
